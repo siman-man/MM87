@@ -74,7 +74,7 @@ class Triangle{
 
   private:
     inline const Vector* getMinVertex() const{
-      return (*p1 < *p2 && *p1 < *p3)? p1 : (*p2 < *p3)? p2 : p3;
+      return *p1 < *p2 && *p1 < *p3 ? p1 : (*p2 < *p3)? p2 : p3;
     }
 
     inline const Vector* getMidVertex() const{
@@ -273,6 +273,17 @@ class SmallPolygons{
       fprintf(stderr,"Before Triangle list = %lu\n", triangles.size());
       Delaunay2d::getDelaunayTriangles(vertices, &triangles);
       fprintf(stderr,"After Triangle list = %lu\n", triangles.size());
+      
+      set<Triangle>::iterator it = triangles.begin();
+
+      while(it != triangles.end()){
+        Triangle t = *it;
+        fprintf(stderr,"p1.y = %4.2f, p1.x = %4.2f\n", t.p1->y, t.p1->x);
+        fprintf(stderr,"p2.y = %4.2f, p2.x = %4.2f\n", t.p2->y, t.p2->x);
+        fprintf(stderr,"p3.y = %4.2f, p3.x = %4.2f\n", t.p3->y, t.p3->x);
+        fprintf(stderr,"\n");
+        it++;
+      }
 
       init(points);
 
