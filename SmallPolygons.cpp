@@ -18,7 +18,8 @@ using namespace std;
 
 typedef long long ll;
 
-const int MAX_NP = 1500;
+const int MAX_NP = 5000;
+const int UNKNOWN = -1;
 
 int np;
 int pointCount;
@@ -218,8 +219,94 @@ class Delaunay2d{
         pRddcMap->insert(TriangleMap::value_type(t, true));
       }
     }
-
 };
+
+struct Node{
+  int id;                       // ノードのID
+  int degree;                   // ノードの次数
+  int triangleId;               // このノードに対応している三角形
+  set<int> neighbors;           // 隣接ノード一覧
+  const Vector *p1, *p2, *p3;   // 頂点座標
+  double y;                     // ノードのY座標
+  double x;                     // ノードのX座標
+  double area;                  // 面積
+
+  Node(int nodeId = UNKNOWN){
+    this->id = nodeId;
+  }
+
+  /*
+   * 隣接ノードの追加、次数が1増える
+   */
+  void addNeighbor(int nodeId){
+    neighbors.insert(nodeId);
+    degree += 1;
+  }
+
+  /*
+   * 隣接ノードの削除、次数が1減る
+   */
+  void removeNeighbor(int nodeId){
+    neighbors.erase(nodeId);
+    degree -= 1;
+  }
+
+  bool isNeighbor(Node *node){
+    int sameCnt = 0;
+    sameCnt += (p1 == node->p1 || p1 == node->p2 || p1 == node->p3);
+    sameCnt += (p2 == node->p1 || p2 == node->p2 || p2 == node->p3);
+    sameCnt += (p3 == node->p1 || p3 == node->p2 || p3 == node->p3);
+
+    return sameCnt == 2;
+  }
+};
+
+struct Tree{
+  int id;
+  set<int> nodes;   // ノードの一覧
+  int nodeCount;    // ノードの数
+};
+
+// ノード一覧
+Node nodeList[10000];
+
+int unionPar[MAX_NP];
+int unionRank[MAX_NP];
+
+// n要素で初期化
+void initUnion(int n){
+  for(int i = 0; i < n; i++){
+    unionPar[i] = i;
+    unionRank[i] = 0;
+  }
+}
+
+// 木の根を求める
+int unionFind(int x){
+  if(unionPar[x] == x){
+    return x;
+  }else{
+    return unionPar[x] = unionFind(unionPar[x]);
+  }
+}
+
+// xとyの属する集合を併合
+void unionUnite(int y, int x){
+  x = unionFind(x);
+  y = unionFind(y);
+  if(x == y) return;
+
+  if(unionRank[x] < unionRank[y]){
+    unionPar[x] = y;
+  }else{
+    unionPar[y] = x;
+    if(unionRank[x] == unionRank[y]) unionRank[x] += 1;
+  }
+}
+
+bool unionSame(int y, int x){
+  return unionFind(y) == unionFind(x);
+}
 
 class SmallPolygons{
   public:
@@ -231,6 +318,16 @@ class SmallPolygons{
 
       initializePointDistance();
     };
+
+    Node *getNode(int id){
+      return &nodeList[id];
+    }
+
+    /*
+     * 現在各ノードがどのグループに属しているかを調べる
+     */
+    void divideCheck(){
+    }
 
     void initializePointDistance(){
       for(int i = 0; i < pointCount; i++){
@@ -252,6 +349,18 @@ class SmallPolygons{
       }
     }
 
+    Node createNode(int nodeId, Triangle t){
+      Node node;
+      node.id = nodeId;
+      node.p1 = t.p1;
+      node.p2 = t.p2;
+      node.p3 = t.p3;
+      node.y  = (t.p1->y + t.p2->y + t.p3->y) / 3.0;
+      node.x  = (t.p1->x + t.p2->x + t.p3->x) / 3.0;
+
+      return node;
+    }
+
     vector<string> choosePolygons(vector<int> points, int n){
       vector<string> result;
       pointCount = points.size()/2;
@@ -264,27 +373,58 @@ class SmallPolygons{
         v.id = id;
         v.y = points[id*2];
         v.x = points[id*2+1];
-        fprintf(stderr,"%d\n", (int)v.y);
-        fprintf(stderr,"%d\n", (int)v.x);
 
         vertices.insert(v);
       }
 
-      fprintf(stderr,"Before Triangle list = %lu\n", triangles.size());
       Delaunay2d::getDelaunayTriangles(vertices, &triangles);
-      fprintf(stderr,"After Triangle list = %lu\n", triangles.size());
-      
+
+      fprintf(stderr,"triangle num = %lu\n", triangles.size());
+
       set<Triangle>::iterator it = triangles.begin();
 
+      int nodeId = 0;
+      int nodeCount = 0;
+
       while(it != triangles.end()){
-        Triangle t = *it;
-        fprintf(stderr,"p1.y = %4.2f, p1.x = %4.2f\n", t.p1->y, t.p1->x);
-        fprintf(stderr,"p2.y = %4.2f, p2.x = %4.2f\n", t.p2->y, t.p2->x);
-        fprintf(stderr,"p3.y = %4.2f, p3.x = %4.2f\n", t.p3->y, t.p3->x);
-        fprintf(stderr,"\n");
+        Triangle t = (*it);
+
+        Node node = createNode(nodeId, t);
+        nodeList[nodeId] = node;
+
+        fprintf(stderr,"Node %d - centerY = %4.2f, centerX = %4.2f\n", node.id, node.y, node.x);
         it++;
+        nodeId += 1;
+        nodeCount += 1;
       }
 
+      for(int i = 0; i < nodeCount; i++){
+        Node *nodeA = getNode(i);
+
+        for(int j = i+1; j < nodeCount; j++){
+          Node *nodeB = getNode(j);
+
+          if(nodeA->isNeighbor(nodeB)){
+            fprintf(stderr,"node %d <-> node %d\n", nodeA->id, nodeB->id);
+            nodeA->addNeighbor(nodeB->id);
+            nodeB->addNeighbor(nodeA->id);
+          }
+        }
+      }
+
+      for(int id = 0; id < nodeCount; id++){
+        Node *node = getNode(id);
+
+        set<int>::iterator it = node->neighbors.begin();
+
+        fprintf(stderr,"Node %d -> ", node->id);
+        while(it != node->neighbors.end()){
+          fprintf(stderr,"%d ", (*it));
+          it++;
+        }
+        fprintf(stderr,"\n");
+      }
+      
       init(points);
 
       return result;
@@ -309,8 +449,11 @@ int main(){
 
   int size = ret.size();
 
+  cout << size << endl;
+
   for(int i = 0; i < size; i++){
-    cout << ret[i] << endl;
+    string str = ret[i];
+    cout << str << endl;
   }
 
   return 0;

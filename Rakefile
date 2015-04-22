@@ -12,12 +12,12 @@ end
 
 task :windows do
   system("g++ -W -Wall -Wno-sign-compare -O2 -o #{@filename} #{@filename}.cpp")
-  system("java -jar ./#{@filename}Vis.jar -seed 1 -exec './#{@filename}.exe'")
+  system("java -jar ./#{@filename}Vis.jar -seed 4 -exec './#{@filename}.exe'")
 end
 
 task :one do
   system("g++ -W -Wall -Wno-sign-compare -O2 -o #{@filename} #{@filename}.cpp")
-  system("time java -jar #{@filename}Vis.jar -seed 2 -novis -exec './#{@filename}'")
+  system("time java -jar #{@filename}Vis.jar -seed 5 -novis -exec './#{@filename}'")
 end
 
 task :two do
