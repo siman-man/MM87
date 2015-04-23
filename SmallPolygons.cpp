@@ -27,6 +27,12 @@ int pointY[MAX_NP];
 int pointX[MAX_NP];
 int pointsDistance[MAX_NP][MAX_NP];
 
+string int2string(int number){
+  stringstream ss; 
+  ss << number;
+  return ss.str();
+}
+
 struct Vector{
   int id;
   double x;
@@ -261,6 +267,24 @@ struct Node{
   }
 };
 
+struct Edge{
+  int u;
+  int v;
+  double cost;
+
+  Edge(int u = UNKNOWN, int v = UNKNOWN, double cost = UNKNOWN){
+    this->u    = u;
+    this->v    = v;
+    this->cost = cost;
+  }
+};
+
+bool comp(const Edge &e1, const Edge &e2){
+  return e1.cost < e2.cost;
+}
+
+vector<Edge> edgeList;
+
 struct Tree{
   int id;
   set<int> nodes;   // ノードの一覧
@@ -274,7 +298,7 @@ int unionPar[MAX_NP];
 int unionRank[MAX_NP];
 
 // n要素で初期化
-void initUnion(int n){
+void initUnionFind(int n){
   for(int i = 0; i < n; i++){
     unionPar[i] = i;
     unionRank[i] = 0;
@@ -329,6 +353,54 @@ class SmallPolygons{
     void divideCheck(){
     }
 
+    void kruskal(){
+      sort(edgeList.begin(), edgeList.end(), comp);
+      initUnionFind(np);
+
+      int E = edgeList.size();
+
+      for(int i = 0; i < E; i++){
+        Edge e = edgeList[i];
+
+        if(!unionSame(e.u, e.v)){
+          unionUnite(e.u, e.v);
+
+          Node *nodeA = getNode(e.u);
+          Node *nodeB = getNode(e.v);
+
+          nodeA->addNeighbor(nodeB->id);
+          nodeB->addNeighbor(nodeA->id);
+          
+          fprintf(stderr,"node %d <-> node %d\n", e.u, e.v);
+        }
+      }
+    }
+
+    double calcArea(const Vector *p1, const Vector *p2, const Vector *p3){
+      double dx, dy;
+
+      dy = (p1->y - p2->y);
+      dx = (p1->x - p2->x);
+
+      double a = sqrt(dy*dy + dx*dx);
+
+      dy = (p2->y - p3->y);
+      dx = (p2->x - p3->x);
+
+      double b = sqrt(dy*dy + dx*dx);
+
+      dy = (p3->y - p1->y);
+      dx = (p3->x - p1->x);
+
+      double c = sqrt(dy*dy + dx*dx);
+
+      double s = (a + b + c) / 2.0;
+
+      double S = sqrt(s * (s - a) * (s - b) * (s - c));
+
+      return S;
+    }
+
     void initializePointDistance(){
       for(int i = 0; i < pointCount; i++){
         int p1_y = pointY[i];
@@ -349,14 +421,126 @@ class SmallPolygons{
       }
     }
 
+    string createPolygon(int nodeId){
+      vector<int> list;
+      queue<int> que;
+      map<int, bool> checkList;
+
+      que.push(nodeId);
+      int p1index;
+      int p2index;
+      int p3index;
+      int listSize;
+      int right, left;
+
+      while(!que.empty()){
+        int id = que.front(); que.pop();
+
+        if(checkList[id]) continue;
+        checkList[id] = true;
+
+        fprintf(stderr,"nodeId = %d\n", id);
+
+        Node *node = getNode(id);
+
+        listSize = list.size();
+        vector<int>::iterator first = list.begin();
+        fprintf(stderr,"nodeID = %d, vertex -> %d - %d - %d\n", node->id, node->p1->id, node->p2->id, node->p3->id);
+
+        if(listSize == 0){
+          if(node->p1->id < node->p2->id){
+            fprintf(stderr,"add %d - %d - %d\n", node->p1->id, node->p2->id, node->p3->id);
+            list.push_back(node->p1->id);
+            list.push_back(node->p2->id);
+            list.push_back(node->p3->id);
+          }else{
+            fprintf(stderr,"add %d - %d - %d\n", node->p2->id, node->p1->id, node->p3->id);
+            list.push_back(node->p2->id);
+            list.push_back(node->p1->id);
+            list.push_back(node->p3->id);
+          }
+        }else{
+          p1index = find(list.begin(), list.end(), node->p1->id) - list.begin();
+          p2index = find(list.begin(), list.end(), node->p2->id) - list.begin();
+          p3index = find(list.begin(), list.end(), node->p3->id) - list.begin();
+
+          fprintf(stderr,"p1index = %d, p2index = %d, p3index = %d\n", p1index, p2index, p3index);
+
+          if(p1index >= listSize){
+            right = max(p2index, p3index);
+            left  = min(p2index, p3index);
+            int idx = first + right - first;
+
+            if(left == 0 && right == listSize-1){
+              fprintf(stderr,"add %d to %d\n", node->p1->id, idx+1);
+              list.insert(first + right + 1, node->p1->id);
+            }else{
+              fprintf(stderr,"add %d to %d\n", node->p1->id, idx);
+              list.insert(first + right, node->p1->id);
+            }
+          }else if(p2index >= listSize){
+            right = max(p1index, p3index);
+            left  = min(p1index, p3index);
+            int idx = first + right - first;
+
+            if(left == 0 && right == listSize-1){
+              fprintf(stderr,"add %d to %d\n", node->p2->id, idx+1);
+              list.insert(first + right + 1, node->p2->id);
+            }else{
+              fprintf(stderr,"add %d to %d\n", node->p2->id, idx);
+              list.insert(first + right, node->p2->id);
+            }
+          }else if(p3index >= listSize){
+            right = max(p1index, p2index);
+            left  = min(p1index, p2index);
+            int idx = first + right - first;
+
+            if(left == 0 && right == listSize-1){
+              fprintf(stderr,"add %d to %d\n", node->p3->id, idx);
+              list.insert(first + right + 1, node->p3->id);
+            }else{
+              fprintf(stderr,"add %d to %d\n", node->p3->id, idx);
+              list.insert(first + right, node->p3->id);
+            }
+          }
+        }
+
+        set<int>::iterator it = node->neighbors.begin();
+
+        while(it != node->neighbors.end()){
+          int nid = (*it);
+
+          if(!checkList[nid]){
+            que.push(nid);
+          }
+
+          it++;
+        }
+      }
+
+      string result = "";
+      listSize = list.size();
+
+      for(int i = 0; i < list.size(); i++){
+        result += int2string(list[i]);
+
+        if(i != listSize-1){
+          result += " ";
+        }
+      }
+
+      return result;
+    }
+
     Node createNode(int nodeId, Triangle t){
       Node node;
-      node.id = nodeId;
-      node.p1 = t.p1;
-      node.p2 = t.p2;
-      node.p3 = t.p3;
-      node.y  = (t.p1->y + t.p2->y + t.p3->y) / 3.0;
-      node.x  = (t.p1->x + t.p2->x + t.p3->x) / 3.0;
+      node.id   = nodeId;
+      node.p1   = t.p1;
+      node.p2   = t.p2;
+      node.p3   = t.p3;
+      node.y    = (t.p1->y + t.p2->y + t.p3->y) / 3.0;
+      node.x    = (t.p1->x + t.p2->x + t.p3->x) / 3.0;
+      node.area = calcArea(t.p1, t.p2, t.p3);
 
       return node;
     }
@@ -392,7 +576,7 @@ class SmallPolygons{
         Node node = createNode(nodeId, t);
         nodeList[nodeId] = node;
 
-        fprintf(stderr,"Node %d - centerY = %4.2f, centerX = %4.2f\n", node.id, node.y, node.x);
+        fprintf(stderr,"Node %d - centerY = %4.2f, centerX = %4.2f, area = %4.2f\n", node.id, node.y, node.x, node.area);
         it++;
         nodeId += 1;
         nodeCount += 1;
@@ -405,27 +589,41 @@ class SmallPolygons{
           Node *nodeB = getNode(j);
 
           if(nodeA->isNeighbor(nodeB)){
+            /*
             fprintf(stderr,"node %d <-> node %d\n", nodeA->id, nodeB->id);
             nodeA->addNeighbor(nodeB->id);
             nodeB->addNeighbor(nodeA->id);
+            */
+
+            Edge edgeA(nodeA->id, nodeB->id, nodeB->area);
+            Edge edgeB(nodeB->id, nodeA->id, nodeA->area);
+
+            edgeList.push_back(edgeA);
+            edgeList.push_back(edgeB);
           }
         }
       }
+
+      fprintf(stderr,"\nConnect!\n\n");
+
+      kruskal();
 
       for(int id = 0; id < nodeCount; id++){
         Node *node = getNode(id);
 
         set<int>::iterator it = node->neighbors.begin();
 
-        fprintf(stderr,"Node %d -> ", node->id);
+        fprintf(stderr,"Node %d - degree = %d -> ", node->id, node->degree);
         while(it != node->neighbors.end()){
           fprintf(stderr,"%d ", (*it));
           it++;
         }
         fprintf(stderr,"\n");
       }
-      
+
       init(points);
+
+      result.push_back(createPolygon(2));
 
       return result;
     }
@@ -453,6 +651,7 @@ int main(){
 
   for(int i = 0; i < size; i++){
     string str = ret[i];
+    fprintf(stderr,"%s\n",str.c_str());
     cout << str << endl;
   }
 
