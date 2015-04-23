@@ -27,6 +27,8 @@ int pointY[MAX_NP];
 int pointX[MAX_NP];
 int pointsDistance[MAX_NP][MAX_NP];
 
+int usedCount[MAX_NP];
+
 string int2string(int number){
   stringstream ss; 
   ss << number;
@@ -236,9 +238,14 @@ struct Node{
   double y;                     // ノードのY座標
   double x;                     // ノードのX座標
   double area;                  // 面積
+  bool used;                    // 使用済みかどうか
+  bool removed;                 // 削除されたかどうか
 
   Node(int nodeId = UNKNOWN){
     this->id = nodeId;
+    this->used = false;
+    this->removed = false;
+    this->degree = 0;
   }
 
   /*
@@ -246,7 +253,7 @@ struct Node{
    */
   void addNeighbor(int nodeId){
     neighbors.insert(nodeId);
-    degree += 1;
+    degree = neighbors.size();
   }
 
   /*
@@ -254,7 +261,7 @@ struct Node{
    */
   void removeNeighbor(int nodeId){
     neighbors.erase(nodeId);
-    degree -= 1;
+    degree = neighbors.size();
   }
 
   bool isNeighbor(Node *node){
@@ -265,6 +272,10 @@ struct Node{
 
     return sameCnt == 2;
   }
+
+  bool operator >(const Node &e) const{
+    return degree * area > e.degree * e.area;
+  }    
 };
 
 struct Edge{
@@ -335,6 +346,8 @@ bool unionSame(int y, int x){
 class SmallPolygons{
   public:
     void init(vector<int> &points){
+      memset(usedCount, 0, sizeof(usedCount));
+
       for(int id = 0; id < pointCount; id++){
         pointY[id] = points[id*2];
         pointX[id] = points[id*2+1];
@@ -354,6 +367,7 @@ class SmallPolygons{
     }
 
     void kruskal(){
+      fprintf(stderr,"kruskal =>\n");
       sort(edgeList.begin(), edgeList.end(), comp);
       initUnionFind(np);
 
@@ -362,11 +376,27 @@ class SmallPolygons{
       for(int i = 0; i < E; i++){
         Edge e = edgeList[i];
 
-        if(!unionSame(e.u, e.v)){
-          unionUnite(e.u, e.v);
+        Node *nodeB = getNode(e.v);
 
+        set<int>::iterator it = nodeB->neighbors.begin();
+        bool flag = true;
+
+        while(it != nodeB->neighbors.end()){
+          int nid = (*it);
+          
+          if(nid != e.u && unionSame(e.u, nid)){
+            flag = false;
+          }
+
+          it++;
+        }
+
+        if(flag && !unionSame(e.u, e.v)){
           Node *nodeA = getNode(e.u);
-          Node *nodeB = getNode(e.v);
+
+          if(nodeA->removed || nodeB->removed) continue;
+
+          unionUnite(e.u, e.v);
 
           nodeA->addNeighbor(nodeB->id);
           nodeB->addNeighbor(nodeA->id);
@@ -442,6 +472,11 @@ class SmallPolygons{
         fprintf(stderr,"nodeId = %d\n", id);
 
         Node *node = getNode(id);
+        node->used = true;
+
+        if(usedCount[node->p1->id] > 0 && usedCount[node->p2->id] > 0 && usedCount[node->p3->id] > 0){
+          continue;
+        }
 
         listSize = list.size();
         vector<int>::iterator first = list.begin();
@@ -453,11 +488,17 @@ class SmallPolygons{
             list.push_back(node->p1->id);
             list.push_back(node->p2->id);
             list.push_back(node->p3->id);
+            usedCount[node->p1->id] += 1;
+            usedCount[node->p2->id] += 1;
+            usedCount[node->p3->id] += 1;
           }else{
             fprintf(stderr,"add %d - %d - %d\n", node->p2->id, node->p1->id, node->p3->id);
             list.push_back(node->p2->id);
             list.push_back(node->p1->id);
             list.push_back(node->p3->id);
+            usedCount[node->p1->id] += 1;
+            usedCount[node->p2->id] += 1;
+            usedCount[node->p3->id] += 1;
           }
         }else{
           p1index = find(list.begin(), list.end(), node->p1->id) - list.begin();
@@ -470,6 +511,7 @@ class SmallPolygons{
             right = max(p2index, p3index);
             left  = min(p2index, p3index);
             int idx = first + right - first;
+            usedCount[node->p1->id] += 1;
 
             if(left == 0 && right == listSize-1){
               fprintf(stderr,"add %d to %d\n", node->p1->id, idx+1);
@@ -482,6 +524,7 @@ class SmallPolygons{
             right = max(p1index, p3index);
             left  = min(p1index, p3index);
             int idx = first + right - first;
+            usedCount[node->p2->id] += 1;
 
             if(left == 0 && right == listSize-1){
               fprintf(stderr,"add %d to %d\n", node->p2->id, idx+1);
@@ -494,6 +537,7 @@ class SmallPolygons{
             right = max(p1index, p2index);
             left  = min(p1index, p2index);
             int idx = first + right - first;
+            usedCount[node->p2->id] += 1;
 
             if(left == 0 && right == listSize-1){
               fprintf(stderr,"add %d to %d\n", node->p3->id, idx);
@@ -542,17 +586,65 @@ class SmallPolygons{
       node.x    = (t.p1->x + t.p2->x + t.p3->x) / 3.0;
       node.area = calcArea(t.p1, t.p2, t.p3);
 
+      usedCount[t.p1->id] += 1;
+      usedCount[t.p2->id] += 1;
+      usedCount[t.p3->id] += 1;
+
       return node;
+    }
+
+    void removeNode(int nodeId){
+      Node *node = getNode(nodeId);
+
+      set<int>::iterator it = node->neighbors.begin();
+      node->used = true;
+      node->removed = true;
+
+      while(it != node->neighbors.end()){
+        int nid = (*it);
+        Node *neighbor = getNode(nid);
+        // 隣接ノードから自分を削除
+        neighbor->removeNeighbor(nodeId);
+        it++;
+      }
+
+      usedCount[node->p1->id] -= 1;
+      usedCount[node->p2->id] -= 1;
+      usedCount[node->p3->id] -= 1;
+    }
+
+    /*
+     * ノードが削除出来るかどうかを確認
+     */
+    bool canNodeRemove(int nodeId){
+      Node *node = getNode(nodeId);
+
+      set<int>::iterator it = node->neighbors.begin();
+
+      // 隣接ノードに次数が1のノードがある場合は削除しない
+      while(it != node->neighbors.end()){
+        int nid = (*it);
+        Node *neighbor = getNode(nid);
+
+        if(neighbor->degree == 1) return false;
+        fprintf(stderr,"nid %d - degree = %d\n", nid, neighbor->degree);
+
+        it++;
+      }
+
+      return (usedCount[node->p1->id] > 1 && usedCount[node->p2->id] > 1 && usedCount[node->p3->id] > 1);
     }
 
     vector<string> choosePolygons(vector<int> points, int n){
       vector<string> result;
       pointCount = points.size()/2;
 
+      init(points);
+
       set<Vector> vertices;
       set<Triangle> triangles;
 
-      for(int id = 0; id < np/2; id++){
+      for(int id = 0; id < pointCount; id++){
         Vector v;
         v.id = id;
         v.y = points[id*2];
@@ -589,11 +681,9 @@ class SmallPolygons{
           Node *nodeB = getNode(j);
 
           if(nodeA->isNeighbor(nodeB)){
-            /*
             fprintf(stderr,"node %d <-> node %d\n", nodeA->id, nodeB->id);
             nodeA->addNeighbor(nodeB->id);
             nodeB->addNeighbor(nodeA->id);
-            */
 
             Edge edgeA(nodeA->id, nodeB->id, nodeB->area);
             Edge edgeB(nodeB->id, nodeA->id, nodeA->area);
@@ -604,12 +694,35 @@ class SmallPolygons{
         }
       }
 
-      fprintf(stderr,"\nConnect!\n\n");
+      for(int i = 0; i < pointCount; i++){
+        fprintf(stderr,"v%d use = %d\n", i, usedCount[i]);
+      }
 
-      kruskal();
+      priority_queue< Node, vector<Node>, greater<Node>  > pque;
+
+      for(int i = 0; i < nodeCount; i++){
+        pque.push(nodeList[i]);
+      }
+
+      while(!pque.empty()){
+        Node n = pque.top(); pque.pop();
+
+        if(canNodeRemove(n.id)){
+          fprintf(stderr,"Node %d remove!\n", n.id);
+          fprintf(stderr,"p1 = %d, p2 = %d, p3 = %d\n", n.p1->id, n.p2->id, n.p3->id);
+          removeNode(n.id);
+        }
+      }
+
+      fprintf(stderr,"\nConnect!\n\n");
 
       for(int id = 0; id < nodeCount; id++){
         Node *node = getNode(id);
+
+        if(node->removed){
+          fprintf(stderr,"Node %d removed\n", node->id);
+          continue;
+        }
 
         set<int>::iterator it = node->neighbors.begin();
 
@@ -621,9 +734,17 @@ class SmallPolygons{
         fprintf(stderr,"\n");
       }
 
-      init(points);
+      kruskal();
 
-      result.push_back(createPolygon(2));
+      memset(usedCount, 0, sizeof(usedCount));
+      for(int id = 0; id < nodeCount; id++){
+        Node *node = getNode(id);
+
+        fprintf(stderr,"Node %d degree = %d\n", id, node->degree);
+        if(!node->used && node->degree <= 1){
+          result.push_back(createPolygon(id));
+        }
+      }
 
       return result;
     }
