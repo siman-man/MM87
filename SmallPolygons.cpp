@@ -492,11 +492,11 @@ class SmallPolygons{
         Node *to   = getNode(e.v);
 
         if(pointUsedCount[to->p1->id] > 0 && pointUsedCount[to->p2->id] > 0 && pointUsedCount[to->p3->id] > 0){
-          fprintf(stderr,"%d -> %d: No new point\n", from->id, to->id);
+          //fprintf(stderr,"%d -> %d: No new point\n", from->id, to->id);
           continue;
         }
 
-        fprintf(stderr,"%d: %d <---> %d\n", cnt, e.u, e.v);
+        //fprintf(stderr,"%d: %d <---> %d\n", cnt, e.u, e.v);
 
         if(from->removed){
           fprintf(stderr,"(prim)Node %d is removed!\n", from->id);
@@ -1308,7 +1308,9 @@ class SmallPolygons{
       }
 
       result.clear();
-      result.push_back(polygon2string(lines));
+
+      string str = polygon2string(lines);
+      result.push_back(str);
 
       return result;
     }
