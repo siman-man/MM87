@@ -19,7 +19,7 @@ using namespace std;
 
 typedef long long ll;
 
-const int MAX_NP = 5000;
+const int MAX_NP = 1600;
 const int UNKNOWN = -1;
 const int COUNTER_CLOCKWISE = 1;
 const int CLOCKWISE = -1;
@@ -93,6 +93,24 @@ double abs(Vector a){
   return sqrt(norm(a));
 }
 
+struct Point {
+  Vector *p1;
+  Vector *p2;
+  Vector *p3;
+  double dist;
+
+  Point(Vector *p1, Vector *p2, Vector *p3, double dist){
+    this->p1 = p1;
+    this->p2 = p2;
+    this->p3 = p3;
+    this->dist = dist;
+  }
+
+  bool operator >(const Point &e) const{
+    return dist > e.dist;
+  }    
+};
+
 struct Circle{
   Vector center;    // 中心座標
   double radius;    // 半径
@@ -140,6 +158,8 @@ class Triangle{
     }
 };
 
+Vector vectorList[10000];
+
 class Delaunay2d{
   public:
     typedef const set<Vector>               ConstVertexSet;
@@ -173,15 +193,15 @@ class Delaunay2d{
         double dy = maxY - centerY;
         double radius = sqrt(dx*dx + dy*dy) + 1.0; // 半径
 
-        Vector *p1 = new Vector;
+        Vector *p1 = &vectorList[MAX_NP-1];
         p1->x = centerX - sqrt(3.0) * radius;
         p1->y = centerY - radius;
 
-        Vector *p2 = new Vector;
+        Vector *p2 = &vectorList[MAX_NP-2];
         p2->x = centerX + sqrt(3.0) * radius;
         p2->y = centerY - radius;
 
-        Vector *p3 = new Vector;
+        Vector *p3 = &vectorList[MAX_NP-3];
         p3->x = centerX;
         p3->y = centerY + 2.0 * radius;
 
@@ -364,7 +384,6 @@ struct Tree{
 
 // ノード一覧
 Node nodeList[10000];
-Vector vectorList[10000];
 
 int unionPar[MAX_NP];
 int unionRank[MAX_NP];
@@ -454,10 +473,10 @@ class SmallPolygons{
         Edge edge(root->id, to->id, to->area);
 
         if(!to->removed){
-          fprintf(stderr,"%d <---> %d\n", root->id, to->id);
+          //fprintf(stderr,"%d <---> %d\n", root->id, to->id);
           pque.push(Edge(root->id, to->id, to->area));
         }else if(to->removed){
-          fprintf(stderr,"%d <-x-> %d\n", root->id, to->id);
+          //fprintf(stderr,"%d <-x-> %d\n", root->id, to->id);
         }
 
         it++;
@@ -510,7 +529,7 @@ class SmallPolygons{
           Node *next = getNode(*that);
 
           if(!next->removed){
-            fprintf(stderr,"Add edge %d -> %d\n", to->id, next->id);
+            //fprintf(stderr,"Add edge %d -> %d\n", to->id, next->id);
             pque.push(Edge(to->id, next->id, next->area));
           }
           that++;
@@ -542,23 +561,6 @@ class SmallPolygons{
           }
 
           unionUnite(e.u, e.v);
-
-          set<int>::iterator it  = nodeIdList.find(from->id);
-          set<int>::iterator iti = nodeIdList.find(to->id);
-
-          /*
-          if(it == nodeIdList.end()){
-            pointUsedCount[from->p1->id] += 1;
-            pointUsedCount[from->p2->id] += 1;
-            pointUsedCount[from->p3->id] += 1;
-          }
-
-          if(iti == nodeIdList.end()){
-            pointUsedCount[to->p1->id] += 1;
-            pointUsedCount[to->p2->id] += 1;
-            pointUsedCount[to->p3->id] += 1;
-          }
-          */
 
           from->addNeighbor(to->id);
           to->addNeighbor(from->id);
@@ -665,8 +667,6 @@ class SmallPolygons{
         node->used = true;
 
         listSize = vlist.size();
-        vector<int>::iterator first = vlist.begin();
-        //fprintf(stderr,"nodeID = %d, vertex -> %d - %d - %d\n", node->id, node->p1->id, node->p2->id, node->p3->id);
 
         if(listSize == 0){
           vlist.push_back(node->p1->id);
@@ -709,7 +709,7 @@ class SmallPolygons{
       int fixCount = edgeListClearSimple(vlist);
       //int fixCount = edgeListClear(vlist);
       //int fixCount = 0;
-      int limit = 10;
+      int limit = 0;
       int i = 0;
 
       while(i < limit){
@@ -799,12 +799,9 @@ class SmallPolygons{
           Vector *p3 = &vectorList[vlist[j%listSize]];
           Vector *p4 = &vectorList[vlist[(j+1)%listSize]];
 
-          double d0 = pointsDistance[p1->id][p2->id] + pointsDistance[p3->id][p4->id];
-
           if(intersect2(*p1, *p2, *p3, *p4)){
           //if(intersect(p1, p2, p3, p4)){
             
-            /*
             double d1 = pointsDistance[p1->id][p3->id] + pointsDistance[p2->id][p4->id];
             double d2 = pointsDistance[p1->id][p4->id] + pointsDistance[p3->id][p2->id];
             double d3 = pointsDistance[p3->id][p2->id] + pointsDistance[p1->id][p4->id];
@@ -822,15 +819,14 @@ class SmallPolygons{
               swap(vlist[i%listSize],  vlist[(j+1)%listSize]);
             }
             fixCount += 1;
-            */
 
-            double dist = getCrossPointDistance(*p1, *p2, *p3, *p4);
-
+            /*
             if(minDist > dist){
               fprintf(stderr,"update minDist\n");
               minDist = dist;
               swapId = j;
             }
+            */
           }
         }
 
@@ -1043,11 +1039,9 @@ class SmallPolygons{
         Node n = pque.top(); pque.pop();
 
         if(n.degree == 0){
-          if(n.originDegree > 1 || (pointUsedCount[n.p1->id] > 0 && pointUsedCount[n.p2->id] > 0 && pointUsedCount[n.p3->id] > 0)){
-            fprintf(stderr,"Node %d removed!: degree = %d\n", n.id, n.degree);
-					  removeNodeCount += 1;
-            removeNode(n.id);
-          }
+          //fprintf(stderr,"Node %d removed!: degree = %d\n", n.id, n.degree);
+					removeNodeCount += 1;
+          removeNode(n.id);
         }else if(canNodeRemove(n.id)){
           fprintf(stderr,"Node %d remove!\n", n.id);
 					removeNodeCount += 1;
@@ -1310,7 +1304,7 @@ class SmallPolygons{
 
       for(int i = 0; i < cnt; i++){
         addNewPoint(lines, notUsePoints);
-        edgeListClearSimple(lines);
+        //edgeListClearSimple(lines);
       }
 
       result.clear();
@@ -1321,10 +1315,8 @@ class SmallPolygons{
 
     void addNewPoint(vector<int> &lines, set<int> &notUsePoints){
       fprintf(stderr,"add new point =>\n");
-      int dist;
       int lineCount = lines.size();
-      Vector *bp1, *bp2, *bp;
-      double minDist = DBL_MAX;
+      priority_queue< Point, vector<Point>, greater<Point>  > pque;
 
       for(int i = 0; i < lineCount; i++){
         Vector *p1 = getVector(lines[i]);
@@ -1337,21 +1329,26 @@ class SmallPolygons{
 
           double dist = getDistanceSP(*p1, *p2, *p);
 
-          if(minDist > dist){
-            minDist = dist;
-            fprintf(stderr,"line %d <-> %d, p = %d, dist = %4.2f\n", p1->id, p2->id, p->id, dist);
-            bp1 = p1;
-            bp2 = p2;
-            bp = p;
+          if(dist < 150.0){
+            pque.push(Point(p1, p2, p, dist));
           }
 
           it++;
         }
       }
 
-      if(minDist < DBL_MAX){
-        insertVertex(bp1, bp2, bp, lines);
-        notUsePoints.erase(bp->id);
+      while(!pque.empty()){
+        Point pt = pque.top(); pque.pop();
+        vector<int> tempLines = lines;
+
+        insertVertex(pt.p1, pt.p2, pt.p3, lines);
+
+        if(lineCross(lines)){
+          lines = tempLines;
+        }else{
+          notUsePoints.erase(pt.p3->id);
+          break;
+        }
       }
     }
 };
