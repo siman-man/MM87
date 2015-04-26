@@ -428,6 +428,10 @@ class SmallPolygons{
       return &nodeList[id];
     }
 
+    inline Vector *getVector(int id){
+      return &vectorList[id];
+    }
+
     void prim(){
       memset(pointUsedCount, 0, sizeof(pointUsedCount));
 
@@ -577,6 +581,9 @@ class SmallPolygons{
       }
     }
 
+    /*
+     * 三角形の面積を計算
+     */
     double calcArea(const Vector *p1, const Vector *p2, const Vector *p3){
       double dx, dy;
 
@@ -716,8 +723,15 @@ class SmallPolygons{
 
       lines = vlist;
 
+      return polygon2string(vlist);
+    }
+
+    string polygon2string(vector<int> &lines){
+      int listSize = lines.size();
+      string result = "";
+
       for(int i = 0; i < listSize; i++){
-        result += int2string(vlist[i]);
+        result += int2string(lines[i]);
 
         if(i != listSize-1){
           result += " ";
@@ -1263,9 +1277,11 @@ class SmallPolygons{
 				}
 			}
 
+      set<int> notUsePoints;
       for(int i = 0; i < pointCount; i++){
         if(pointUsedCount[i] == 0){
           fprintf(stderr,"Point %d is not used\n", i);
+          notUsePoints.insert(i);
         }
       }
 
@@ -1290,7 +1306,53 @@ class SmallPolygons{
         */
       }
 
+      int cnt = notUsePoints.size();
+
+      for(int i = 0; i < cnt; i++){
+        addNewPoint(lines, notUsePoints);
+        edgeListClearSimple(lines);
+      }
+
+      result.clear();
+      result.push_back(polygon2string(lines));
+
       return result;
+    }
+
+    void addNewPoint(vector<int> &lines, set<int> &notUsePoints){
+      fprintf(stderr,"add new point =>\n");
+      int dist;
+      int lineCount = lines.size();
+      Vector *bp1, *bp2, *bp;
+      double minDist = DBL_MAX;
+
+      for(int i = 0; i < lineCount; i++){
+        Vector *p1 = getVector(lines[i]);
+        Vector *p2 = getVector(lines[(i+1)%lineCount]);
+
+        set<int>::iterator it = notUsePoints.begin();
+
+        while(it != notUsePoints.end()){
+          Vector *p = getVector(*it);
+
+          double dist = getDistanceSP(*p1, *p2, *p);
+
+          if(minDist > dist){
+            minDist = dist;
+            fprintf(stderr,"line %d <-> %d, p = %d, dist = %4.2f\n", p1->id, p2->id, p->id, dist);
+            bp1 = p1;
+            bp2 = p2;
+            bp = p;
+          }
+
+          it++;
+        }
+      }
+
+      if(minDist < DBL_MAX){
+        insertVertex(bp1, bp2, bp, lines);
+        notUsePoints.erase(bp->id);
+      }
     }
 };
 
