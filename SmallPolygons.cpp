@@ -31,7 +31,7 @@ const double EPS = 1e-10;
 int pointCount;
 int pointY[MAX_NP];
 int pointX[MAX_NP];
-int pointsDistance[MAX_NP][MAX_NP];
+double pointsDistance[MAX_NP][MAX_NP];
 int pointUsedCount[MAX_NP];
 int nodeCount;
 
@@ -84,6 +84,14 @@ class Vector{
     return sqrt(norm());
   }
 };
+
+double norm(Vector a){
+  return a.x*a.x + a.y*a.y;
+}
+
+double abs(Vector a){
+  return sqrt(norm(a));
+}
 
 struct Circle{
   Vector center;    // 中心座標
@@ -268,6 +276,7 @@ class Delaunay2d{
 struct Node{
   int id;                       // ノードのID
   int degree;                   // ノードの次数
+  int originDegree;
   int triangleId;               // このノードに対応している三角形
   set<int> neighbors;           // 隣接ノード一覧
   set<int> originNeighbors;     // 元の隣接ノード
@@ -295,6 +304,7 @@ struct Node{
 
   void addOriginNeighbor(int nodeId){
     originNeighbors.insert(nodeId);
+    originDegree = originNeighbors.size();
   }
 
   /*
@@ -394,6 +404,8 @@ bool unionSame(int y, int x){
   return unionFind(y) == unionFind(x);
 }
 
+vector<int> lines;
+
 class SmallPolygons{
   public:
     void init(vector<int> &points){
@@ -417,38 +429,36 @@ class SmallPolygons{
     }
 
     void prim(){
-      // 辺リストをクリア
-			//edgeList.clear();
-      // 最小コスト
-      bool nodeUsed[pointCount];
-      memset(nodeUsed, false, sizeof(nodeUsed));
+      memset(pointUsedCount, 0, sizeof(pointUsedCount));
+
       set<int> nodeIdList;
       priority_queue< Edge, vector<Edge>, greater<Edge> > pque;
 
-      Node *root = getNode(0);
+      int rootId = 0;
+
+      Node *root = getNode(rootId);
+
+      while(root->removed){
+        rootId += 1;
+        root = getNode(rootId);
+      }
 
       set<int>::iterator it = root->originNeighbors.begin();
-
-      int minCost = INT_MAX;
-      Edge minEdge;
 
       while(it != root->originNeighbors.end()){
         Node *to = getNode(*it);
         Edge edge(root->id, to->id, to->area);
 
-        fprintf(stderr,"%d <---> %d\n", root->id, to->id);
-
-        if(minCost > to->area){
-          minCost = to->area;
-          minEdge = Edge(root->id, to->id, to->area);
+        if(!to->removed){
+          fprintf(stderr,"%d <---> %d\n", root->id, to->id);
+          pque.push(Edge(root->id, to->id, to->area));
+        }else if(to->removed){
+          fprintf(stderr,"%d <-x-> %d\n", root->id, to->id);
         }
 
         it++;
       }
 
-      pque.push(minEdge);
-
-      nodeUsed[0] = true;
       int cnt = 0;
 
       while(!pque.empty()){
@@ -458,18 +468,17 @@ class SmallPolygons{
         Node *from = getNode(e.u);
         Node *to   = getNode(e.v);
 
+        if(pointUsedCount[to->p1->id] > 0 && pointUsedCount[to->p2->id] > 0 && pointUsedCount[to->p3->id] > 0){
+          fprintf(stderr,"%d -> %d: No new point\n", from->id, to->id);
+          continue;
+        }
+
         fprintf(stderr,"%d: %d <---> %d\n", cnt, e.u, e.v);
 
         if(from->removed){
           fprintf(stderr,"(prim)Node %d is removed!\n", from->id);
           continue;
         }
-
-        if(nodeUsed[to->id]){
-          fprintf(stderr,"Node %d is used!\n", to->id);
-          continue;
-        }
-
 
         set<int>::iterator it  = nodeIdList.find(from->id);
         set<int>::iterator iti = nodeIdList.find(to->id);
@@ -491,27 +500,16 @@ class SmallPolygons{
         nodeIdList.insert(from->id);
         nodeIdList.insert(to->id);
 
-        nodeUsed[from->id] = true;
-        nodeUsed[to->id] = true;
-
         set<int>::iterator that = to->originNeighbors.begin();
-
-        minCost = INT_MAX;
-        Edge mEdge;
 
         while(that != to->originNeighbors.end()){
           Node *next = getNode(*that);
 
-          if(!nodeUsed[next->id]){
-            if(minCost > next->area){
-              minCost = next->area;
-              mEdge = Edge(to->id, next->id, next->area);
-            }
+          if(!next->removed){
+            fprintf(stderr,"Add edge %d -> %d\n", to->id, next->id);
+            pque.push(Edge(to->id, next->id, next->area));
           }
           that++;
-        }
-        if(mEdge.v != UNKNOWN){
-          pque.push(mEdge);
         }
       }
     }
@@ -616,12 +614,17 @@ class SmallPolygons{
           int dy = p2_y - p1_y;
           int dx = p2_x - p1_x;
 
-          int dist = round(sqrt(dy*dy + dx*dx));
+          double dist = sqrt(dy*dy + dx*dx);
 
           pointsDistance[i][j] = dist;
           pointsDistance[j][i] = dist;
         }
       }
+    }
+
+    void insertVertex(Vector *p1, Vector *p2, Vector *p, vector<int> &vlist){
+      int p1index = find(vlist.begin(), vlist.end(), p1->id) - vlist.begin();
+      int p2index = find(vlist.begin(), vlist.end(), p2->id) - vlist.begin();
     }
 
     string createPolygon(int nodeId){
@@ -670,10 +673,12 @@ class SmallPolygons{
           if(p1index < vlist.size() && p2index < vlist.size() && p3index < vlist.size()){
             fprintf(stderr,"p1 = %d, p2 = %d, p3 = %d\n", node->p1->id, node->p2->id, node->p3->id);
             //swap(vlist[p2index], vlist[p3index]);
+            /*
             for(int i = 0; i < vlist.size(); i++){
               fprintf(stderr," %d ->", vlist[i]);
             }
             fprintf(stderr,"\n");
+            */
           }
 
           if(p1index >= listSize){
@@ -682,10 +687,8 @@ class SmallPolygons{
             //int idx = first + right - first;
 
             if(left == 0 && right == listSize-1){
-              //fprintf(stderr,"add %d to %d\n", node->p1->id, idx+1);
               vlist.insert(first + right + 1, node->p1->id);
             }else{
-              //fprintf(stderr,"add %d to %d\n", node->p1->id, idx);
               vlist.insert(first + right, node->p1->id);
             }
           }else if(p2index >= listSize){
@@ -733,14 +736,22 @@ class SmallPolygons{
       string result = "";
       listSize = vlist.size();
 
-      int fixCount = edgeListClear(vlist);
-      int limit = 5;
+      int fixCount = edgeListClearSimple(vlist);
+      //int fixCount = edgeListClear(vlist);
+      //int fixCount = 0;
+      int limit = 10;
       int i = 0;
 
-      while(fixCount != 0 && i < limit){
-        fixCount = edgeListClear(vlist);
+      while(i < limit){
+        if(i%2){
+          fixCount = edgeListClearSimple(vlist);
+        }else{
+          fixCount = edgeListClear(vlist);
+        }
         i += 1;
       }
+
+      lines = vlist;
 
       for(int i = 0; i < listSize; i++){
         result += int2string(vlist[i]);
@@ -753,6 +764,49 @@ class SmallPolygons{
       return result;
     }
 
+    bool lineCross(vector<int> &vlist){
+      int listSize = vlist.size();
+
+      for(int i = 0; i < listSize; i++){
+        Vector *p1 = &vectorList[vlist[i%listSize]];
+        Vector *p2 = &vectorList[vlist[(i+1)%listSize]];
+
+
+        for(int j = i+1; j < i+listSize; j++){
+          Vector *p3 = &vectorList[vlist[j%listSize]];
+          Vector *p4 = &vectorList[vlist[(j+1)%listSize]];
+
+          if(intersect2(*p1, *p2, *p3, *p4)){
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    int edgeListClearSimple(vector<int> &vlist){
+      int listSize = vlist.size();
+      int fixCount = 0;
+
+      for(int i = 0; i < listSize; i++){
+        Vector *p1 = &vectorList[vlist[i%listSize]];
+        Vector *p2 = &vectorList[vlist[(i+1)%listSize]];
+        Vector *p3 = &vectorList[vlist[(i+2)%listSize]];
+        Vector *p4 = &vectorList[vlist[(i+3)%listSize]];
+
+        if(intersect2(*p1, *p2, *p3, *p4)){
+          fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
+          swap(vlist[(i+1)%listSize],  vlist[(i+2)%listSize]);
+          fixCount += 1;
+        }
+      }
+
+      fprintf(stderr,"fixCount = %d\n", fixCount);
+
+      return fixCount;
+    }
+
     int edgeListClear(vector<int> &vlist){
       int listSize = vlist.size();
       int fixCount = 0;
@@ -761,16 +815,76 @@ class SmallPolygons{
         Vector *p1 = &vectorList[vlist[i%listSize]];
         Vector *p2 = &vectorList[vlist[(i+1)%listSize]];
 
+        double minDist = DBL_MAX;
+        int swapId = -1;
+
         for(int j = i+1; j < i+listSize; j++){
           Vector *p3 = &vectorList[vlist[j%listSize]];
           Vector *p4 = &vectorList[vlist[(j+1)%listSize]];
 
-          //if(intersect2(*p1, *p2, *p3, *p4)){
-          if(intersect(p1, p2, p3, p4)){
+          double d0 = pointsDistance[p1->id][p2->id] + pointsDistance[p3->id][p4->id];
+
+          if(intersect2(*p1, *p2, *p3, *p4)){
+          //if(intersect(p1, p2, p3, p4)){
+            
+            /*
+            double d1 = pointsDistance[p1->id][p3->id] + pointsDistance[p2->id][p4->id];
+            double d2 = pointsDistance[p1->id][p4->id] + pointsDistance[p3->id][p2->id];
+            double d3 = pointsDistance[p3->id][p2->id] + pointsDistance[p1->id][p4->id];
+            double d4 = pointsDistance[p4->id][p2->id] + pointsDistance[p3->id][p1->id];
+          
             fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
-            swap(vlist[(i+1)%listSize],  vlist[j%listSize]);
+
+            if(d4 > d1 && d3 > d1 && d2 > d1){
+              swap(vlist[(i+1)%listSize],  vlist[j%listSize]);
+            }else if(d4 > d2 && d3 > d2 && d1 > d2){
+              swap(vlist[(i+1)%listSize],  vlist[(j+1)%listSize]);
+            }else if(d4 > d3 && d2 > d3 && d1 > d3){
+              swap(vlist[i%listSize],  vlist[j%listSize]);
+            }else{
+              swap(vlist[i%listSize],  vlist[(j+1)%listSize]);
+            }
             fixCount += 1;
+            */
+
+            double dist = getCrossPointDistance(*p1, *p2, *p3, *p4);
+
+            if(minDist > dist){
+              fprintf(stderr,"update minDist\n");
+              minDist = dist;
+              swapId = j;
+            }
           }
+        }
+
+        if(minDist < DBL_MAX){
+          Vector *p3 = &vectorList[vlist[swapId%listSize]];
+          Vector *p4 = &vectorList[vlist[(swapId+1)%listSize]];
+
+          fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
+          double d0 = pointsDistance[p1->id][p2->id] + pointsDistance[p3->id][p4->id];
+          double d1 = pointsDistance[p1->id][p3->id] + pointsDistance[p2->id][p4->id];
+          double d2 = pointsDistance[p1->id][p4->id] + pointsDistance[p3->id][p2->id];
+          double d3 = pointsDistance[p3->id][p2->id] + pointsDistance[p1->id][p4->id];
+          double d4 = pointsDistance[p4->id][p2->id] + pointsDistance[p3->id][p1->id];
+          
+          if(d4 > d1 && d3 > d1 && d2 > d1 && d0 > d1){
+            swap(vlist[(i+1)%listSize],  vlist[swapId%listSize]);
+          }else if(d4 > d2 && d3 > d2 && d1 > d2 && d0 > d2){
+            swap(vlist[(i+1)%listSize],  vlist[(swapId+1)%listSize]);
+          }else if(d4 > d3 && d2 > d3 && d1 > d3 && d0 > d3){
+            swap(vlist[i%listSize],  vlist[swapId%listSize]);
+          }else if(d0 > d4){
+            swap(vlist[i%listSize],  vlist[(swapId+1)%listSize]);
+          }
+          fixCount += 1;
+
+          /*
+          swap(vlist[i%listSize],  vlist[swapId%listSize]);
+          fixCount += 1;
+          */
+
+          break;
         }
       }
 
@@ -821,8 +935,32 @@ class SmallPolygons{
       return ON_SEGMENT;
     }
 
+    double getCrossPointDistance(Vector p1, Vector p2, Vector p3, Vector p4){
+      Vector base = p4 - p1;
+      double d1 = abs(cross(base, p1 - p3));
+      double d2 = abs(cross(base, p2 - p3));
+      double t = d1 / (d1 + d2);
+      Vector result = p1 + (p2 - p1) * t;
+      double dy = p1.y - result.y;
+      double dx = p1.x - result.x;
+      double dy2 = p2.y - result.y;
+      double dx2 = p2.x - result.x;
+
+      return (dy*dy + dx*dx + dy2*dy2 + dx2*dx2);
+    }
+
+    double getDistanceLP(Vector p1, Vector p2, Vector p){
+      return abs(cross(p2 - p1, p - p1) / abs(p2 - p1));
+    }
+
+    double getDistanceSP(Vector p1, Vector p2, Vector p){
+      if(dot(p2 - p1, p - p1) < 0.0) return abs(p - p1);
+      if(dot(p1 - p2, p - p2) < 0.0) return abs(p - p2);
+      return getDistanceLP(p1, p2, p);
+    }
+
     bool intersect2(Vector p1, Vector p2, Vector p3, Vector p4){
-      return ((ccw(p1, p2, p3) * ccw(p1, p2, p4) < 0) && (ccw(p3, p4, p1) * ccw(p3, p4, p2) < 0));
+      return ((ccw(p1, p2, p3) * ccw(p1, p2, p4) <= 0) && (ccw(p3, p4, p1) * ccw(p3, p4, p2) < 0));
     }
 
     bool intersect(Vector *p1, Vector *p2, Vector *p3, Vector *p4){
@@ -847,7 +985,9 @@ class SmallPolygons{
       for(int i = 0; i < nodeCount; i++){
         Node *from = getNode(i);
 
-        if(from->removed) continue;
+        if(from->removed){
+          continue;
+        }
 
         for(int j = i+1; j < nodeCount; j++){
           Node *to = getNode(j);
@@ -878,8 +1018,8 @@ class SmallPolygons{
       memset(pointUsedCount, 0, sizeof(pointUsedCount));
 
       createEdge();
-      //prim();
-      kruskal();
+      prim();
+      //kruskal();
       /*
       for(int i = 0; i < nodeCount; i++){
         Node *nodeA = getNode(i);
@@ -926,11 +1066,11 @@ class SmallPolygons{
         Node n = pque.top(); pque.pop();
 
         if(n.degree == 0){
-          /*
-          fprintf(stderr,"Node %d: degree = %d\n", n.id, n.degree);
-					removeNodeCount += 1;
-          removeNode(n.id);
-          */
+          if(n.originDegree > 1 || (pointUsedCount[n.p1->id] > 0 && pointUsedCount[n.p2->id] > 0 && pointUsedCount[n.p3->id] > 0)){
+            fprintf(stderr,"Node %d removed!: degree = %d\n", n.id, n.degree);
+					  removeNodeCount += 1;
+            removeNode(n.id);
+          }
         }else if(canNodeRemove(n.id)){
           fprintf(stderr,"Node %d remove!\n", n.id);
 					removeNodeCount += 1;
@@ -1000,6 +1140,8 @@ class SmallPolygons{
       node.p3   = t.p3;
       node.y    = (t.p1->y + t.p2->y + t.p3->y) / 3.0;
       node.x    = (t.p1->x + t.p2->x + t.p3->x) / 3.0;
+      node.removed = false;
+      node.used = false;
       node.area = calcArea(t.p1, t.p2, t.p3);
 
       return node;
@@ -1020,9 +1162,11 @@ class SmallPolygons{
         it++;
       }
 
-      pointUsedCount[node->p1->id] -= 1;
-      pointUsedCount[node->p2->id] -= 1;
-      pointUsedCount[node->p3->id] -= 1;
+      /*
+      pointUsedCount[node->p1->id] = max(0, pointUsedCount[node->p1->id] - 1);
+      pointUsedCount[node->p2->id] = max(0, pointUsedCount[node->p2->id] - 1);
+      pointUsedCount[node->p3->id] = max(0, pointUsedCount[node->p3->id] - 1);
+      */
     }
 
     /*
@@ -1132,7 +1276,6 @@ class SmallPolygons{
         it++;
         nodeId += 1;
         nodeCount += 1;
-
       }
 
       /*
@@ -1141,7 +1284,7 @@ class SmallPolygons{
       kruskal();
       */
 
-			int limit = 2;
+			int limit = 1;
 
       /*
        * グラフを整備する
@@ -1156,6 +1299,12 @@ class SmallPolygons{
 					resetGraph();
 				}
 			}
+
+      for(int i = 0; i < pointCount; i++){
+        if(pointUsedCount[i] == 0){
+          fprintf(stderr,"Point %d is not used\n", i);
+        }
+      }
 
       for(int id = 0; id < nodeCount; id++){
         Node *node = getNode(id);
