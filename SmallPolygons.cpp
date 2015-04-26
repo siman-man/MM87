@@ -622,9 +622,20 @@ class SmallPolygons{
       }
     }
 
-    void insertVertex(Vector *p1, Vector *p2, Vector *p, vector<int> &vlist){
+    void insertVertex(const Vector *p1, const Vector *p2, const Vector *p, vector<int> &vlist){
+      vector<int>::iterator first = vlist.begin();
+      int listSize = vlist.size();
       int p1index = find(vlist.begin(), vlist.end(), p1->id) - vlist.begin();
       int p2index = find(vlist.begin(), vlist.end(), p2->id) - vlist.begin();
+
+      int right = max(p1index, p2index);
+      int left  = min(p1index, p2index);
+
+      if(left == 0 && right == listSize-1){
+        vlist.insert(first + right + 1, p->id);
+      }else{
+        vlist.insert(first + right, p->id);
+      }
     }
 
     string createPolygon(int nodeId){
@@ -634,11 +645,8 @@ class SmallPolygons{
       map<int, bool> checkList;
 
       que.push(nodeId);
-      int p1index;
-      int p2index;
-      int p3index;
+      int p1index, p2index, p3index;
       int listSize;
-      int right, left;
 
       while(!que.empty()){
         int id = que.front(); que.pop();
@@ -654,17 +662,9 @@ class SmallPolygons{
         //fprintf(stderr,"nodeID = %d, vertex -> %d - %d - %d\n", node->id, node->p1->id, node->p2->id, node->p3->id);
 
         if(listSize == 0){
-          if(node->p1->id < node->p2->id){
-            //fprintf(stderr,"add %d - %d - %d\n", node->p1->id, node->p2->id, node->p3->id);
-            vlist.push_back(node->p1->id);
-            vlist.push_back(node->p2->id);
-            vlist.push_back(node->p3->id);
-          }else{
-            //fprintf(stderr,"add %d - %d - %d\n", node->p2->id, node->p1->id, node->p3->id);
-            vlist.push_back(node->p2->id);
-            vlist.push_back(node->p1->id);
-            vlist.push_back(node->p3->id);
-          }
+          vlist.push_back(node->p1->id);
+          vlist.push_back(node->p2->id);
+          vlist.push_back(node->p3->id);
         }else{
           p1index = find(vlist.begin(), vlist.end(), node->p1->id) - vlist.begin();
           p2index = find(vlist.begin(), vlist.end(), node->p2->id) - vlist.begin();
@@ -672,49 +672,14 @@ class SmallPolygons{
 
           if(p1index < vlist.size() && p2index < vlist.size() && p3index < vlist.size()){
             fprintf(stderr,"p1 = %d, p2 = %d, p3 = %d\n", node->p1->id, node->p2->id, node->p3->id);
-            //swap(vlist[p2index], vlist[p3index]);
-            /*
-            for(int i = 0; i < vlist.size(); i++){
-              fprintf(stderr," %d ->", vlist[i]);
-            }
-            fprintf(stderr,"\n");
-            */
           }
 
           if(p1index >= listSize){
-            right = max(p2index, p3index);
-            left  = min(p2index, p3index);
-            //int idx = first + right - first;
-
-            if(left == 0 && right == listSize-1){
-              vlist.insert(first + right + 1, node->p1->id);
-            }else{
-              vlist.insert(first + right, node->p1->id);
-            }
+            insertVertex(node->p2, node->p3, node->p1, vlist);
           }else if(p2index >= listSize){
-            right = max(p1index, p3index);
-            left  = min(p1index, p3index);
-            //int idx = first + right - first;
-
-            if(left == 0 && right == listSize-1){
-              //fprintf(stderr,"add %d to %d\n", node->p2->id, idx+1);
-              vlist.insert(first + right + 1, node->p2->id);
-            }else{
-              //fprintf(stderr,"add %d to %d\n", node->p2->id, idx);
-              vlist.insert(first + right, node->p2->id);
-            }
+            insertVertex(node->p1, node->p3, node->p2, vlist);
           }else if(p3index >= listSize){
-            right = max(p1index, p2index);
-            left  = min(p1index, p2index);
-            //int idx = first + right - first;
-
-            if(left == 0 && right == listSize-1){
-              //fprintf(stderr,"add %d to %d\n", node->p3->id, idx);
-              vlist.insert(first + right + 1, node->p3->id);
-            }else{
-              //fprintf(stderr,"add %d to %d\n", node->p3->id, idx);
-              vlist.insert(first + right, node->p3->id);
-            }
+            insertVertex(node->p1, node->p2, node->p3, vlist);
           }
         }
 
@@ -730,8 +695,6 @@ class SmallPolygons{
           it++;
         }
       }
-
-			//fprintf(stderr,"\n");
 
       string result = "";
       listSize = vlist.size();
