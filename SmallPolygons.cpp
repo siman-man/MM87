@@ -499,7 +499,6 @@ class SmallPolygons{
         //fprintf(stderr,"%d: %d <---> %d\n", cnt, e.u, e.v);
 
         if(from->removed){
-          fprintf(stderr,"(prim)Node %d is removed!\n", from->id);
           continue;
         }
 
@@ -678,7 +677,7 @@ class SmallPolygons{
           p3index = find(vlist.begin(), vlist.end(), node->p3->id) - vlist.begin();
 
           if(p1index < vlist.size() && p2index < vlist.size() && p3index < vlist.size()){
-            fprintf(stderr,"p1 = %d, p2 = %d, p3 = %d\n", node->p1->id, node->p2->id, node->p3->id);
+            //fprintf(stderr,"p1 = %d, p2 = %d, p3 = %d\n", node->p1->id, node->p2->id, node->p3->id);
           }
 
           if(p1index >= listSize){
@@ -773,13 +772,13 @@ class SmallPolygons{
         Vector *p4 = &vectorList[vlist[(i+3)%listSize]];
 
         if(intersect2(*p1, *p2, *p3, *p4)){
-          fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
+          //fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
           swap(vlist[(i+1)%listSize],  vlist[(i+2)%listSize]);
           fixCount += 1;
         }
       }
 
-      fprintf(stderr,"fixCount = %d\n", fixCount);
+      //fprintf(stderr,"fixCount = %d\n", fixCount);
 
       return fixCount;
     }
@@ -807,7 +806,7 @@ class SmallPolygons{
             double d3 = pointsDistance[p3->id][p2->id] + pointsDistance[p1->id][p4->id];
             double d4 = pointsDistance[p4->id][p2->id] + pointsDistance[p3->id][p1->id];
           
-            fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
+            //fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
 
             if(d4 > d1 && d3 > d1 && d2 > d1){
               swap(vlist[(i+1)%listSize],  vlist[j%listSize]);
@@ -834,7 +833,7 @@ class SmallPolygons{
           Vector *p3 = &vectorList[vlist[swapId%listSize]];
           Vector *p4 = &vectorList[vlist[(swapId+1)%listSize]];
 
-          fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
+          //fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
           double d0 = pointsDistance[p1->id][p2->id] + pointsDistance[p3->id][p4->id];
           double d1 = pointsDistance[p1->id][p3->id] + pointsDistance[p2->id][p4->id];
           double d2 = pointsDistance[p1->id][p4->id] + pointsDistance[p3->id][p2->id];
@@ -861,7 +860,7 @@ class SmallPolygons{
         }
       }
 
-      fprintf(stderr,"fixCount = %d\n", fixCount);
+      //fprintf(stderr,"fixCount = %d\n", fixCount);
 
       return fixCount;
     }
