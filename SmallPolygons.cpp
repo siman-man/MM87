@@ -384,7 +384,8 @@ bool comp(const Edge &e1, const Edge &e2){
 
 vector<Edge> edgeList;
 
-struct Tree{
+// 多角形を表す構造体
+struct Polygon{
   int id;
   set<int> nodes;   // ノードの一覧
   int nodeCount;    // ノードの数
@@ -585,11 +586,13 @@ class SmallPolygons{
       }
     }
 
-    string createPolygon(int nodeId){
+    Polygon createPolygon(int nodeId){
 			fprintf(stderr,"create polygon = %d\n", nodeId);
       vector<int> vlist;
       queue<int> que;
       map<int, bool> checkList;
+
+      Polygon polygon;
 
       que.push(nodeId);
       int p1index, p2index, p3index;
@@ -640,24 +643,9 @@ class SmallPolygons{
       string result = "";
       listSize = vlist.size();
 
-      int fixCount = edgeListClearSimple(vlist);
-      //int fixCount = edgeListClear(vlist);
-      //int fixCount = 0;
-      int limit = 0;
-      int i = 0;
-
-      while(i < limit){
-        if(i%2){
-          fixCount = edgeListClearSimple(vlist);
-        }else{
-          fixCount = edgeListClear(vlist);
-        }
-        i += 1;
-      }
-
       lines = vlist;
 
-      return polygon2string(vlist);
+      return polygon;
     }
 
     /*
@@ -699,68 +687,6 @@ class SmallPolygons{
       }
 
       return false;
-    }
-
-    /*
-     * 2つの線分の交差を解消する(2つ先)
-     */
-    int edgeListClearSimple(vector<int> &vlist){
-      int listSize = vlist.size();
-      int fixCount = 0;
-
-      for(int i = 0; i < listSize; i++){
-        Vector *p1 = &vectorList[vlist[i%listSize]];
-        Vector *p2 = &vectorList[vlist[(i+1)%listSize]];
-        Vector *p3 = &vectorList[vlist[(i+2)%listSize]];
-        Vector *p4 = &vectorList[vlist[(i+3)%listSize]];
-
-        if(intersect(*p1, *p2, *p3, *p4)){
-          //fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
-          swap(vlist[(i+1)%listSize],  vlist[(i+2)%listSize]);
-          fixCount += 1;
-        }
-      }
-
-      return fixCount;
-    }
-
-    int edgeListClear(vector<int> &vlist){
-      int listSize = vlist.size();
-      int fixCount = 0;
-
-      for(int i = 0; i < listSize; i++){
-        Vector *p1 = &vectorList[vlist[i%listSize]];
-        Vector *p2 = &vectorList[vlist[(i+1)%listSize]];
-
-        int swapId = -1;
-
-        for(int j = i+1; j < i+listSize; j++){
-          Vector *p3 = &vectorList[vlist[j%listSize]];
-          Vector *p4 = &vectorList[vlist[(j+1)%listSize]];
-
-          if(intersect(*p1, *p2, *p3, *p4)){
-            double d1 = pointsDistance[p1->id][p3->id] + pointsDistance[p2->id][p4->id];
-            double d2 = pointsDistance[p1->id][p4->id] + pointsDistance[p3->id][p2->id];
-            double d3 = pointsDistance[p3->id][p2->id] + pointsDistance[p1->id][p4->id];
-            double d4 = pointsDistance[p4->id][p2->id] + pointsDistance[p3->id][p1->id];
-          
-            //fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
-
-            if(d4 > d1 && d3 > d1 && d2 > d1){
-              swap(vlist[(i+1)%listSize],  vlist[j%listSize]);
-            }else if(d4 > d2 && d3 > d2 && d1 > d2){
-              swap(vlist[(i+1)%listSize],  vlist[(j+1)%listSize]);
-            }else if(d4 > d3 && d2 > d3 && d1 > d3){
-              swap(vlist[i%listSize],  vlist[j%listSize]);
-            }else{
-              swap(vlist[i%listSize],  vlist[(j+1)%listSize]);
-            }
-            fixCount += 1;
-          }
-        }
-      }
-
-      return fixCount;
     }
 
     int direction(Vector *p0, Vector *p1, Vector *p2){
@@ -1082,14 +1008,15 @@ class SmallPolygons{
         }
       }
 
+      /*
+       * 多角形を構成するノードの一覧を取得
+       */
       for(int id = 0; id < nodeCount; id++){
         Node *node = getNode(id);
 
 				if(node->removed || node->used) continue;
 
-        if(!node->used && node->degree <= 1){
-          result.push_back(createPolygon(id));
-        }
+        createPolygon(id);
 
         /*
         string str = "";
@@ -1107,7 +1034,6 @@ class SmallPolygons{
 
       for(int i = 0; i < cnt; i++){
         addNewPoint(lines, notUsePoints);
-        //edgeListClearSimple(lines);
       }
 
       result.clear();
