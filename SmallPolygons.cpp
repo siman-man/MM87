@@ -19,14 +19,14 @@ using namespace std;
 
 typedef long long ll;
 
-const int MAX_NP = 1600;
-const int UNKNOWN = -1;
+const int MAX_NP            = 1600;
+const int UNKNOWN           = -1;
 const int COUNTER_CLOCKWISE = 1;
-const int CLOCKWISE = -1;
-const int ONLINE_BACK = 2;
-const int ONLINE_FRONT = -2;
-const int ON_SEGMENT = 0;
-const double EPS = 1e-10;
+const int CLOCKWISE         = -1;
+const int ONLINE_BACK       = 2;
+const int ONLINE_FRONT      = -2;
+const int ON_SEGMENT        = 0;
+const double EPS            = 1e-10;
 
 int pointCount;
 int pointY[MAX_NP];
@@ -335,11 +335,17 @@ struct Node{
     degree = neighbors.size();
   }
 
+  /*
+   * 隣接しているノードをリセット
+   */
 	void clearNeighbor(){
 		neighbors.clear();
 		degree = 0;
 	}
 
+  /*
+   * 共有している点が2点あれば隣接している
+   */
   bool isNeighbor(Node *node){
     int sameCnt = 0;
     sameCnt += (p1 == node->p1 || p1 == node->p2 || p1 == node->p3);
@@ -355,9 +361,9 @@ struct Node{
 };
 
 struct Edge{
-  int u;
-  int v;
-  double cost;
+  int u;        // 始点
+  int v;        // 終点
+  double cost;  // コスト(終点側ノードの面積)
 
   Edge(int u = UNKNOWN, int v = UNKNOWN, double cost = UNKNOWN){
     this->u    = u;
@@ -427,8 +433,10 @@ vector<int> lines;
 
 class SmallPolygons{
   public:
+    /*
+     * 初期化処理
+     */
     void init(vector<int> &points){
-
       for(int id = 0; id < pointCount; id++){
         pointY[id] = points[id*2];
         pointX[id] = points[id*2+1];
@@ -533,52 +541,6 @@ class SmallPolygons{
           }
           that++;
         }
-      }
-    }
-
-    void kruskal(){
-      fprintf(stderr,"kruskal =>\n");
-      sort(edgeList.begin(), edgeList.end(), comp);
-      initUnionFind(nodeCount);
-
-      int E = edgeList.size();
-      fprintf(stderr,"Edge count = %d\n", E);
-      set<int> nodeIdList;
-
-      for(int i = 0; i < E; i++){
-        Edge e = edgeList[i];
-
-        Node *from = getNode(e.u);
-
-        if(!unionSame(e.u, e.v)){
-          Node *to = getNode(e.v);
-
-          if(from->removed || to->removed) continue;
-          if((pointUsedCount[from->p1->id] > 0 && pointUsedCount[from->p2->id] > 0 && pointUsedCount[from->p3->id] > 0) &&
-            (pointUsedCount[to->p1->id] > 0 && pointUsedCount[to->p2->id] > 0 && pointUsedCount[to->p3->id] > 0)){
-            //continue;
-          }
-
-          unionUnite(e.u, e.v);
-
-          from->addNeighbor(to->id);
-          to->addNeighbor(from->id);
-          nodeIdList.insert(from->id);
-          nodeIdList.insert(to->id);
-          
-          //fprintf(stderr,"node %d <-> node %d\n", e.u, e.v);
-        }
-      }
-
-      set<int>::iterator it = nodeIdList.begin();
-
-      while(it != nodeIdList.end()){
-        Node *node = getNode((*it));
-
-        pointUsedCount[node->p1->id] += 1;
-        pointUsedCount[node->p2->id] += 1;
-        pointUsedCount[node->p3->id] += 1;
-        it++;
       }
     }
 
@@ -991,33 +953,6 @@ class SmallPolygons{
 
       createEdge();
       prim();
-      //kruskal();
-      /*
-      for(int i = 0; i < nodeCount; i++){
-        Node *nodeA = getNode(i);
-
-				if(nodeA->removed) continue;
-
-        for(int j = i+1; j < nodeCount; j++){
-          Node *nodeB = getNode(j);
-
-					if(nodeB->removed) continue;
-
-          if(nodeA->isNeighbor(nodeB)){
-            //fprintf(stderr,"node %d <-> node %d\n", nodeA->id, nodeB->id);
-            nodeA->addNeighbor(nodeB->id);
-            nodeB->addNeighbor(nodeA->id);
-
-						// 辺の追加
-            Edge edgeA(nodeA->id, nodeB->id, nodeB->area);
-            Edge edgeB(nodeB->id, nodeA->id, nodeA->area);
-
-            edgeList.push_back(edgeA);
-            edgeList.push_back(edgeB);
-          }
-        }
-      }
-      */
 		}
 
 		/*
@@ -1037,6 +972,7 @@ class SmallPolygons{
       while(!pque.empty()){
         Node n = pque.top(); pque.pop();
 
+        // 次数0のノードは削除
         if(n.degree == 0){
           //fprintf(stderr,"Node %d removed!: degree = %d\n", n.id, n.degree);
 					removeNodeCount += 1;
@@ -1053,7 +989,7 @@ class SmallPolygons{
 		}
 
 		/*
-		 * グラフのクリアを行う
+		 * グラフのリセットを行う
 		 */
 		void resetGraph(){
 			fprintf(stderr,"reset graph =>\n");
@@ -1102,6 +1038,9 @@ class SmallPolygons{
 			return false;
 		}
 
+    /*
+     * ノードを作成する
+     */
     Node createNode(int nodeId, Triangle t){
       Node node;
       node.id   = nodeId;
@@ -1145,65 +1084,13 @@ class SmallPolygons{
     bool canNodeRemove(int nodeId){
       Node *node = getNode(nodeId);
 
-			vector<int> neighbors;
-
       if(node->degree <= 1){
-        /*
-        fprintf(stderr,"Node = %d, p%d -> %d, p%d -> %d, p%d -> %d\n", nodeId,
-            node->p1->id, pointUsedCount[node->p1->id],
-            node->p2->id, pointUsedCount[node->p2->id],
-            node->p3->id, pointUsedCount[node->p3->id]);
-            */
         if(pointUsedCount[node->p1->id] > 1 && pointUsedCount[node->p2->id] > 1 && pointUsedCount[node->p3->id] > 1){
           return true;
         }
-      }else{
-        return false;
       }
 
-			// 次数が1のノードは消せない
-			// if(node->degree == 1) return false;
-      //
-      set<int>::iterator it = node->originNeighbors.begin();
-
-      // 隣接ノードに次数が1のノードがある場合は削除しない
-      while(it != node->originNeighbors.end()){
-        int nid = (*it);
-        Node *neighbor = getNode(nid);
-
-        if(neighbor->degree == 1) return false;
-				neighbors.push_back(nid);
-
-        it++;
-      }
-
-			if(node->degree == 2){
-				node->removed = true;
-
-				if(!isConnect(neighbors[0], neighbors[1])){
-					node->removed = false;
-					return false;
-				}
-
-				node->removed = false;
-				return true;
-			}else if(false && node->degree == 3){
-				node->removed = true;
-
-				if(!isConnect(neighbors[0], neighbors[1])){
-					node->removed = false;
-					return false;
-				}
-
-				if(!isConnect(neighbors[1], neighbors[2])){
-					node->removed = false;
-					return false;
-				}
-
-				return true;
-			}
-
-			return false;
+      return false;
     }
 
     vector<string> choosePolygons(vector<int> points, int n){
@@ -1247,12 +1134,6 @@ class SmallPolygons{
         nodeId += 1;
         nodeCount += 1;
       }
-
-      /*
-      createEdge();
-      // クラスカルで最小全域木を作成
-      kruskal();
-      */
 
 			int limit = 1;
 
