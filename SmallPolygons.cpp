@@ -467,7 +467,6 @@ class SmallPolygons{
      * 隣接ノード一覧の更新
      */
     void updateNeighbor(Node *from){
-      fprintf(stderr,"Node %d: updateNeighbor =>\n", from->id);
       for(int id = 0; id < nodeCount; id++){
         Node *to = getNode(id);
 
@@ -639,7 +638,7 @@ class SmallPolygons{
     }
 
     Polygon createPolygon(int nodeId){
-			fprintf(stderr,"create polygon = %d\n", nodeId);
+			//fprintf(stderr,"create polygon = %d\n", nodeId);
       vector<int> vlist;
       queue<int> que;
       map<int, bool> checkList;
@@ -744,7 +743,7 @@ class SmallPolygons{
      * 多角形を二等分する
      */
     Polygons dividePolygon(Polygon polygon){
-      fprintf(stderr,"dividePolygon =>\n");
+      //fprintf(stderr,"dividePolygon =>\n");
       priority_queue< Node, vector<Node>, greater<Node> > pque;
       Polygons polygons;
 
@@ -761,11 +760,11 @@ class SmallPolygons{
       }
 
       if(pque.size() == 0){
-        fprintf(stderr,"Failed divide polygon...\n");
+        //fprintf(stderr,"Failed divide polygon...\n");
         polygons.first = false;
         return polygons;
       }else{
-        fprintf(stderr,"Success divide polygon!\n");
+        //fprintf(stderr,"Success divide polygon!\n");
         int removeID_A = pque.top().id;
         polygons.first = true;
 
@@ -773,10 +772,10 @@ class SmallPolygons{
         Node *right = getNode(neighbors.first());
         Node *left  = getNode(neighbors.second());
 
-        if(right->degree == 2){
+        if(right->degree == 2 && checkDivide(removeID_A, right->id)){
           polygons.second.first  = divideNode(removeID_A, right->id);
           polygons.second.second = divideNode(right->id, removeID_A);
-        }else if(left->degree == 2){
+        }else if(left->degree == 2 && checkDivide(removeID_A, left->id)){
           polygons.second.first  = divideNode(removeID_A, left->id);
           polygons.second.second = divideNode(left->id, removeID_A);
         }
@@ -786,7 +785,7 @@ class SmallPolygons{
     }
 
     vector<int> polygon2vlist(Polygon polygon){
-			fprintf(stderr,"polygon2vlist =>\n");
+			//fprintf(stderr,"polygon2vlist =>\n");
       vector<int> vlist;
       queue<int> que;
       map<int, bool> checkList;
@@ -1251,12 +1250,11 @@ class SmallPolygons{
 
       while(!finalPolygons.empty()){
         Polygon poly = finalPolygons.front(); finalPolygons.pop();
-        /*
         vector<int> lines = polygon2vlist(poly);
         string str = vlist2string(lines);
         result.push_back(str);
-        */
 
+        /*
         set<int>::iterator that = poly.nodes.begin();
 
         while(that != poly.nodes.end()){
@@ -1271,13 +1269,14 @@ class SmallPolygons{
           result.push_back(str);
           that++;
         }
+        */
       }
 
       return result;
     }
 
     void addNewPoint(vector<int> &lines, set<int> &notUsePoints, Polygon &rootPolygon){
-      fprintf(stderr,"add new point =>\n");
+      //fprintf(stderr,"add new point =>\n");
       int lineCount = lines.size();
       priority_queue< Point, vector<Point>, greater<Point>  > pque;
 
