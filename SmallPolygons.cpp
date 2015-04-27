@@ -18,6 +18,7 @@
 using namespace std;
 
 typedef long long ll;
+typedef pair<int, int> nextRootId;
 
 const int MAX_NP            =  1600;  // 頂点の最大数
 const int UNKNOWN           =    -1;  // 未定義
@@ -292,6 +293,14 @@ class Delaunay2d{
     }
 };
 
+struct Neighbors{
+  vector<int> nlist;
+
+  int first(){ return nlist[0]; }
+  int second(){ return nlist[1]; }
+  int third(){ return nlist[2]; }
+};
+
 struct Node{
   int id;                       // ノードのID
   int degree;                   // ノードの次数
@@ -407,7 +416,7 @@ struct Polygon{
 // ノード一覧
 Node nodeList[10000];
 
-typedef pair<Polygon, Polygon> Polygons;
+typedef pair< bool, pair<Polygon, Polygon> > Polygons;
 
 class SmallPolygons{
   public:
@@ -635,9 +644,84 @@ class SmallPolygons{
     }
 
     /*
+     * 分割出来るノードかどうかを調べる
+     */
+    bool canDivide(Node *node){
+      if(node->degree != 2) return false;
+
+      set<int>::iterator id = node->neighbors.begin();
+      int cnt = 0;
+
+      while(id != node->neighbors.end()){
+        Node *neighbor = getNode(*id);
+
+        cnt += (neighbor->degree == 2);
+
+        id++;
+      }
+
+      return (cnt > 0);
+    }
+
+    /*
+     * ノードを削除して次のポリゴンの要素の一部を返す
+     *   removeID_A: 削除するノードのID
+     *   removeID_B: 削除するノードのID
+     */
+    Polygon divideNode(int removeID_A, int removeID_B){
+      Neighbors neighbors = createNeighbors(removeID_A);
+      Polygon polygon;
+
+      removeNode(removeID_A);
+
+      if(neighbors.first() != removeID_B){
+        polygon = createPolygon(neighbors.first());
+      }else{
+        polygon = createPolygon(neighbors.second());
+      }
+
+      return polygon;
+    }
+
+    /*
      * 多角形を二等分する
      */
     Polygons dividePolygon(Polygon polygon){
+      priority_queue< Node, vector<Node>, greater<Node> > pque;
+      Polygons polygons;
+
+      set<int>::iterator id = polygon.nodes.begin();
+
+      // 自身と隣接しているノードの次数が2のノードだけを入れる
+      while(id != polygon.nodes.end()){
+        Node *node = getNode(*id);
+
+        if(canDivide(node)){
+          pque.push(*node);     
+        }
+        id++;
+      }
+
+      if(pque.size() == 0){
+        polygons.first = false;
+        return polygons;
+      }else{
+        int removeID_A = pque.top().id;
+
+        Neighbors neighbors = createNeighbors(removeID_A);
+        Node *right = getNode(neighbors.first());
+        Node *left  = getNode(neighbors.second());
+
+        if(right->degree == 2){
+          polygons.second.first  = divideNode(removeID_A, right->id);
+          polygons.second.second = divideNode(right->id, removeID_A);
+        }else if(left->degree == 2){
+          polygons.second.first  = divideNode(removeID_A, left->id);
+          polygons.second.second = divideNode(left->id, removeID_A);
+        }
+      }
+
+      return polygons;
     }
 
     vector<int> polygon2vlist(Polygon polygon){
@@ -915,6 +999,20 @@ class SmallPolygons{
 			return false;
 		}
 
+    Neighbors createNeighbors(int nodeId){
+      Node *node = getNode(nodeId);
+      Neighbors result;
+
+      set<int>::iterator it = node->neighbors.begin();
+
+      while(it != node->neighbors.end()){
+        result.nlist.push_back(*it);
+        it++; 
+      }
+
+      return result;
+    }
+
     /*
      * ノードを作成する
      */
@@ -1055,6 +1153,12 @@ class SmallPolygons{
         */
       }
 
+      Polygons polygons = dividePolygon(rootPolygon);
+
+      if(polygons.first){
+        fprintf(stderr,"divided polygon!\n");
+      }
+      //vector<int> lines = polygon2vlist(rootPolygon);
       vector<int> lines = polygon2vlist(rootPolygon);
       int cnt = notUsePoints.size();
 
