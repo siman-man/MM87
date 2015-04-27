@@ -422,10 +422,16 @@ class SmallPolygons{
       return &nodeList[id];
     }
 
+    /*
+     * 頂点情報の取得
+     */
     inline Vector *getVector(int id){
       return &vectorList[id];
     }
 
+    /*
+     * プリム法を使って最小木を作成（出来るところまで）
+     */
     void prim(){
       memset(pointUsedCount, 0, sizeof(pointUsedCount));
 
@@ -450,8 +456,6 @@ class SmallPolygons{
         if(!to->removed){
           //fprintf(stderr,"%d <---> %d\n", root->id, to->id);
           pque.push(Edge(root->id, to->id, to->area));
-        }else if(to->removed){
-          //fprintf(stderr,"%d <-x-> %d\n", root->id, to->id);
         }
 
         it++;
