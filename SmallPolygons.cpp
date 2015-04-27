@@ -19,14 +19,14 @@ using namespace std;
 
 typedef long long ll;
 
-const int MAX_NP            =  1600; // 頂点の最大数
-const int UNKNOWN           =    -1;
+const int MAX_NP            =  1600;  // 頂点の最大数
+const int UNKNOWN           =    -1;  // 未定義
 const int COUNTER_CLOCKWISE =     1;
 const int CLOCKWISE         =    -1;
 const int ONLINE_BACK       =     2;
 const int ONLINE_FRONT      =    -2;
 const int ON_SEGMENT        =     0;
-const double EPS            = 1e-10;
+const double EPS            = 1e-10;  // 誤差
 
 int pointCount;
 int pointY[MAX_NP];
@@ -307,10 +307,10 @@ struct Node{
   bool removed;                 // 削除されたかどうか
 
   Node(int nodeId = UNKNOWN){
-    this->id = nodeId;
-    this->used = false;
+    this->id      = nodeId;
+    this->used    = false;
     this->removed = false;
-    this->degree = 0;
+    this->degree  = 0;
   }
 
   /*
@@ -321,6 +321,9 @@ struct Node{
     degree = neighbors.size();
   }
 
+  /*
+   * 本来接続していたノード
+   */
   void addOriginNeighbor(int nodeId){
     originNeighbors.insert(nodeId);
     originDegree = originNeighbors.size();
@@ -354,8 +357,8 @@ struct Node{
     return sameCnt == 2;
   }
 
-  bool operator >(const Node &e) const{
-    return degree * area > e.degree * e.area;
+  bool operator >(const Node &n) const{
+    return area > n.area;
   }    
 };
 
@@ -382,19 +385,29 @@ bool comp(const Edge &e1, const Edge &e2){
   return e1.cost < e2.cost;
 }
 
+// 辺一覧
 vector<Edge> edgeList;
 
 // 多角形を表す構造体
 struct Polygon{
   int id;
-  set<int> nodes;   // ノードの一覧
-  int nodeCount;    // ノードの数
+  set<int> nodes;     // ノードの一覧
+  double totalArea;   // 多角形の総面積
+
+  Polygon(){
+    nodeCount = 0;
+    totalArea = 0.0;
+  }
+
+  bool operator >(const Polygon &p) const{
+    return totalArea > p.totalArea;
+  }    
 };
 
 // ノード一覧
 Node nodeList[10000];
 
-vector<int> lines;
+typedef pair<Polygon, Polygon> Polygons;
 
 class SmallPolygons{
   public:
@@ -595,8 +608,47 @@ class SmallPolygons{
       Polygon polygon;
 
       que.push(nodeId);
+
+      while(!que.empty()){
+        int id = que.front(); que.pop();
+
+        if(checkList[id]) continue;
+        checkList[id] = true;
+        // ノードのリストのに追加
+        polygon.nodes.insert(id);
+
+        Node *node = getNode(id);
+        node->used = true;
+
+        // 合計面積に追加
+        polygon.totalArea += node->area;
+
+        set<int>::iterator nid = node->neighbors.begin();
+
+        while(nid != node->neighbors.end()){
+          que.push(*nid);
+          nid++;
+        }
+      }
+
+      return polygon;
+    }
+
+    /*
+     * 多角形を二等分する
+     */
+    Polygons dividePolygon(Polygon polygon){
+    }
+
+    vector<int> polygon2vlist(Polygon polygon){
+			fprintf(stderr,"polygon2vlist =>\n");
+      vector<int> vlist;
+      queue<int> que;
+      map<int, bool> checkList;
       int p1index, p2index, p3index;
       int listSize;
+
+      que.push(*polygon.nodes.begin());
 
       while(!que.empty()){
         int id = que.front(); que.pop();
@@ -631,36 +683,25 @@ class SmallPolygons{
 
         while(it != node->neighbors.end()){
           int nid = (*it);
-
-          if(!checkList[nid]){
-            que.push(nid);
-          }
-
+          if(!checkList[nid]) que.push(nid);
           it++;
         }
       }
 
-      string result = "";
-      listSize = vlist.size();
-
-      lines = vlist;
-
-      return polygon;
+      return vlist;
     }
 
     /*
      * 解答用に頂点のリストを文字列に変換
      */
-    string polygon2string(vector<int> &lines){
+    string vlist2string(vector<int> &lines){
       int listSize = lines.size();
       string result = "";
 
       for(int i = 0; i < listSize; i++){
         result += int2string(lines[i]);
 
-        if(i != listSize-1){
-          result += " ";
-        }
+        if(i != listSize-1) result += " ";
       }
 
       return result;
@@ -680,9 +721,7 @@ class SmallPolygons{
           Vector *p3 = &vectorList[vlist[j%listSize]];
           Vector *p4 = &vectorList[vlist[(j+1)%listSize]];
 
-          if(intersect(*p1, *p2, *p3, *p4)){
-            return true;
-          }
+          if(intersect(*p1, *p2, *p3, *p4)) return true;
         }
       }
 
@@ -693,6 +732,7 @@ class SmallPolygons{
       return (p1->x - p0->x) * (p2->y - p0->y) - (p2->x - p0->x) * (p1->y - p0->y);
     }
 
+    // 線分上に存在しているかどうかを判定
     bool onSegment(Vector *pi, Vector *pj, Vector *pk){
       if((min(pi->x, pj->x) <= pk->x && pk->x <= max(pi->x, pj->x)) && (min(pi->y, pj->y) <= pk->y && pk->y <= max(pi->y, pj->y))){
         return true;
@@ -715,18 +755,10 @@ class SmallPolygons{
       Vector a = p1 - p0;
       Vector b = p2 - p0;
 
-      if(cross(a, b) > EPS){
-        return COUNTER_CLOCKWISE;
-      }
-      if(cross(a, b) < -EPS){
-        return CLOCKWISE;
-      }
-      if(dot(a, b) < -EPS){
-        return ONLINE_BACK;
-      }
-      if(a.norm() < b.norm()){
-        return ONLINE_FRONT;
-      }
+      if(cross(a, b) > EPS) return COUNTER_CLOCKWISE;
+      if(cross(a, b) < -EPS) return CLOCKWISE;
+      if(dot(a, b) < -EPS) return ONLINE_BACK;
+      if(a.norm() < b.norm()) return ONLINE_FRONT;
 
       return ON_SEGMENT;
     }
@@ -768,9 +800,7 @@ class SmallPolygons{
       for(int i = 0; i < nodeCount; i++){
         Node *from = getNode(i);
 
-        if(from->removed){
-          continue;
-        }
+        if(from->removed) continue;
 
         for(int j = i+1; j < nodeCount; j++){
           Node *to = getNode(j);
@@ -823,13 +853,11 @@ class SmallPolygons{
 
         // 次数0のノードは削除
         if(n.degree == 0){
-          //fprintf(stderr,"Node %d removed!: degree = %d\n", n.id, n.degree);
 					removeNodeCount += 1;
           removeNode(n.id);
         }else if(canNodeRemove(n.id)){
           fprintf(stderr,"Node %d remove!\n", n.id);
 					removeNodeCount += 1;
-          //fprintf(stderr,"p1 = %d, p2 = %d, p3 = %d\n", n.p1->id, n.p2->id, n.p3->id);
           removeNode(n.id);
         }
       }
@@ -905,6 +933,10 @@ class SmallPolygons{
       return node;
     }
 
+    /*
+     * ノードの削除を行う
+     *   nodeId: ノードID
+     */
     void removeNode(int nodeId){
       Node *node = getNode(nodeId);
 
@@ -912,13 +944,17 @@ class SmallPolygons{
       node->used = true;
       node->removed = true;
 
+      // 隣接ノードから自分を削除
       while(it != node->neighbors.end()){
         int nid = (*it);
         Node *neighbor = getNode(nid);
-        // 隣接ノードから自分を削除
         neighbor->removeNeighbor(nodeId);
         it++;
       }
+
+      // 自分の隣接ノードを削除
+      node->neighbors.clear();
+      node->degree = 0;
 
       /*
       pointUsedCount[node->p1->id] = max(0, pointUsedCount[node->p1->id] - 1);
@@ -960,6 +996,7 @@ class SmallPolygons{
         vertices.insert(v);
       }
 
+      // ドロネー三角分割
       Delaunay2d::getDelaunayTriangles(vertices, &triangles);
 
       fprintf(stderr,"triangle num = %lu\n", triangles.size());
@@ -978,27 +1015,13 @@ class SmallPolygons{
         Node node = createNode(nodeId, t);
         nodeList[nodeId] = node;
 
-        //fprintf(stderr,"Node %d - centerY = %4.2f, centerX = %4.2f, area = %4.2f\n", node.id, node.y, node.x, node.area);
         it++;
         nodeId += 1;
         nodeCount += 1;
       }
 
-			int limit = 1;
-
-      /*
-       * グラフを整備する
-       */
-			for(int i = 0; i < limit; i++){
-				createGraph();
-
-				int removedNodeCount = cleanGraph();
-				if(removedNodeCount == 0) break;
-
-				if(i != limit-1){
-					resetGraph();
-				}
-			}
+			createGraph();
+			cleanGraph();
 
       set<int> notUsePoints;
       for(int i = 0; i < pointCount; i++){
@@ -1008,6 +1031,8 @@ class SmallPolygons{
         }
       }
 
+      Polygon rootPolygon;
+
       /*
        * 多角形を構成するノードの一覧を取得
        */
@@ -1016,7 +1041,7 @@ class SmallPolygons{
 
 				if(node->removed || node->used) continue;
 
-        createPolygon(id);
+        rootPolygon = createPolygon(id);
 
         /*
         string str = "";
@@ -1030,6 +1055,7 @@ class SmallPolygons{
         */
       }
 
+      vector<int> lines = polygon2vlist(rootPolygon);
       int cnt = notUsePoints.size();
 
       for(int i = 0; i < cnt; i++){
@@ -1038,7 +1064,7 @@ class SmallPolygons{
 
       result.clear();
 
-      string str = polygon2string(lines);
+      string str = vlist2string(lines);
       result.push_back(str);
 
       return result;
