@@ -19,13 +19,13 @@ using namespace std;
 
 typedef long long ll;
 
-const int MAX_NP            = 1600;
-const int UNKNOWN           = -1;
-const int COUNTER_CLOCKWISE = 1;
-const int CLOCKWISE         = -1;
-const int ONLINE_BACK       = 2;
-const int ONLINE_FRONT      = -2;
-const int ON_SEGMENT        = 0;
+const int MAX_NP            =  1600; // 頂点の最大数
+const int UNKNOWN           =    -1;
+const int COUNTER_CLOCKWISE =     1;
+const int CLOCKWISE         =    -1;
+const int ONLINE_BACK       =     2;
+const int ONLINE_FRONT      =    -2;
+const int ON_SEGMENT        =     0;
 const double EPS            = 1e-10;
 
 int pointCount;
@@ -44,8 +44,7 @@ string int2string(int number){
 class Vector{
   public:
   int id;
-  double x;
-  double y;
+  double x, y;
 
   Vector(double y = 0.0, double x = 0.0){
     this->y = y;
@@ -296,7 +295,7 @@ class Delaunay2d{
 struct Node{
   int id;                       // ノードのID
   int degree;                   // ノードの次数
-  int originDegree;
+  int originDegree;             // 元の次元数
   int triangleId;               // このノードに対応している三角形
   set<int> neighbors;           // 隣接ノード一覧
   set<int> originNeighbors;     // 元の隣接ノード
@@ -360,6 +359,9 @@ struct Node{
   }    
 };
 
+/*
+ * 各ノードを連結する辺情報
+ */
 struct Edge{
   int u;        // 始点
   int v;        // 終点
@@ -391,44 +393,6 @@ struct Tree{
 // ノード一覧
 Node nodeList[10000];
 
-int unionPar[MAX_NP];
-int unionRank[MAX_NP];
-
-// n要素で初期化
-void initUnionFind(int n){
-  for(int i = 0; i < n; i++){
-    unionPar[i] = i;
-    unionRank[i] = 0;
-  }
-}
-
-// 木の根を求める
-int unionFind(int x){
-  if(unionPar[x] == x){
-    return x;
-  }else{
-    return unionPar[x] = unionFind(unionPar[x]);
-  }
-}
-
-// xとyの属する集合を併合
-void unionUnite(int y, int x){
-  x = unionFind(x);
-  y = unionFind(y);
-  if(x == y) return;
-
-  if(unionRank[x] < unionRank[y]){
-    unionPar[x] = y;
-  }else{
-    unionPar[y] = x;
-    if(unionRank[x] == unionRank[y]) unionRank[x] += 1;
-  }
-}
-
-bool unionSame(int y, int x){
-  return unionFind(y) == unionFind(x);
-}
-
 vector<int> lines;
 
 class SmallPolygons{
@@ -451,6 +415,9 @@ class SmallPolygons{
       initializePointDistance();
     };
 
+    /*
+     * ノード情報の取得
+     */
     inline Node *getNode(int id){
       return &nodeList[id];
     }
@@ -572,6 +539,9 @@ class SmallPolygons{
       return S;
     }
 
+    /*
+     * 頂点間の距離を事前に計算しておく
+     */
     void initializePointDistance(){
       for(int i = 0; i < pointCount; i++){
         int p1_y = pointY[i];
@@ -592,6 +562,9 @@ class SmallPolygons{
       }
     }
 
+    /*
+     * 頂点の挿入を行う
+     */
     void insertVertex(const Vector *p1, const Vector *p2, const Vector *p, vector<int> &vlist){
       vector<int>::iterator first = vlist.begin();
       int listSize = vlist.size();
@@ -638,10 +611,6 @@ class SmallPolygons{
           p2index = find(vlist.begin(), vlist.end(), node->p2->id) - vlist.begin();
           p3index = find(vlist.begin(), vlist.end(), node->p3->id) - vlist.begin();
 
-          if(p1index < vlist.size() && p2index < vlist.size() && p3index < vlist.size()){
-            //fprintf(stderr,"p1 = %d, p2 = %d, p3 = %d\n", node->p1->id, node->p2->id, node->p3->id);
-          }
-
           if(p1index >= listSize){
             insertVertex(node->p2, node->p3, node->p1, vlist);
           }else if(p2index >= listSize){
@@ -687,6 +656,9 @@ class SmallPolygons{
       return polygon2string(vlist);
     }
 
+    /*
+     * 解答用に頂点のリストを文字列に変換
+     */
     string polygon2string(vector<int> &lines){
       int listSize = lines.size();
       string result = "";
@@ -702,6 +674,9 @@ class SmallPolygons{
       return result;
     }
 
+    /*
+     * 多角形を構成している、線分が交差していないかどうかを調べる
+     */
     bool lineCross(vector<int> &vlist){
       int listSize = vlist.size();
 
@@ -709,12 +684,11 @@ class SmallPolygons{
         Vector *p1 = &vectorList[vlist[i%listSize]];
         Vector *p2 = &vectorList[vlist[(i+1)%listSize]];
 
-
         for(int j = i+1; j < i+listSize; j++){
           Vector *p3 = &vectorList[vlist[j%listSize]];
           Vector *p4 = &vectorList[vlist[(j+1)%listSize]];
 
-          if(intersect2(*p1, *p2, *p3, *p4)){
+          if(intersect(*p1, *p2, *p3, *p4)){
             return true;
           }
         }
@@ -733,7 +707,7 @@ class SmallPolygons{
         Vector *p3 = &vectorList[vlist[(i+2)%listSize]];
         Vector *p4 = &vectorList[vlist[(i+3)%listSize]];
 
-        if(intersect2(*p1, *p2, *p3, *p4)){
+        if(intersect(*p1, *p2, *p3, *p4)){
           //fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
           swap(vlist[(i+1)%listSize],  vlist[(i+2)%listSize]);
           fixCount += 1;
@@ -760,7 +734,7 @@ class SmallPolygons{
           Vector *p3 = &vectorList[vlist[j%listSize]];
           Vector *p4 = &vectorList[vlist[(j+1)%listSize]];
 
-          if(intersect2(*p1, *p2, *p3, *p4)){
+          if(intersect(*p1, *p2, *p3, *p4)){
           //if(intersect(p1, p2, p3, p4)){
             
             double d1 = pointsDistance[p1->id][p3->id] + pointsDistance[p2->id][p4->id];
@@ -893,21 +867,8 @@ class SmallPolygons{
       return getDistanceLP(p1, p2, p);
     }
 
-    bool intersect2(Vector p1, Vector p2, Vector p3, Vector p4){
+    bool intersect(Vector p1, Vector p2, Vector p3, Vector p4){
       return ((ccw(p1, p2, p3) * ccw(p1, p2, p4) <= 0) && (ccw(p3, p4, p1) * ccw(p3, p4, p2) < 0));
-    }
-
-    bool intersect(Vector *p1, Vector *p2, Vector *p3, Vector *p4){
-      int d1 = direction(p3, p4, p1);
-      int d2 = direction(p3, p4, p2);
-      int d3 = direction(p1, p2, p3);
-      int d4 = direction(p1, p2, p4);
-
-      if(((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))){
-        return true;
-      }else{
-        return false;
-      }
     }
 
     /*
