@@ -697,6 +697,9 @@ class SmallPolygons{
       return false;
     }
 
+    /*
+     * 2つの線分の交差を解消する(2つ先)
+     */
     int edgeListClearSimple(vector<int> &vlist){
       int listSize = vlist.size();
       int fixCount = 0;
@@ -714,8 +717,6 @@ class SmallPolygons{
         }
       }
 
-      //fprintf(stderr,"fixCount = %d\n", fixCount);
-
       return fixCount;
     }
 
@@ -727,7 +728,6 @@ class SmallPolygons{
         Vector *p1 = &vectorList[vlist[i%listSize]];
         Vector *p2 = &vectorList[vlist[(i+1)%listSize]];
 
-        double minDist = DBL_MAX;
         int swapId = -1;
 
         for(int j = i+1; j < i+listSize; j++){
@@ -735,8 +735,6 @@ class SmallPolygons{
           Vector *p4 = &vectorList[vlist[(j+1)%listSize]];
 
           if(intersect(*p1, *p2, *p3, *p4)){
-          //if(intersect(p1, p2, p3, p4)){
-            
             double d1 = pointsDistance[p1->id][p3->id] + pointsDistance[p2->id][p4->id];
             double d2 = pointsDistance[p1->id][p4->id] + pointsDistance[p3->id][p2->id];
             double d3 = pointsDistance[p3->id][p2->id] + pointsDistance[p1->id][p4->id];
@@ -754,49 +752,9 @@ class SmallPolygons{
               swap(vlist[i%listSize],  vlist[(j+1)%listSize]);
             }
             fixCount += 1;
-
-            /*
-            if(minDist > dist){
-              fprintf(stderr,"update minDist\n");
-              minDist = dist;
-              swapId = j;
-            }
-            */
           }
-        }
-
-        if(minDist < DBL_MAX){
-          Vector *p3 = &vectorList[vlist[swapId%listSize]];
-          Vector *p4 = &vectorList[vlist[(swapId+1)%listSize]];
-
-          //fprintf(stderr,"intersect! %d <-> %d, %d <-> %d\n", p1->id, p2->id, p3->id, p4->id);
-          double d0 = pointsDistance[p1->id][p2->id] + pointsDistance[p3->id][p4->id];
-          double d1 = pointsDistance[p1->id][p3->id] + pointsDistance[p2->id][p4->id];
-          double d2 = pointsDistance[p1->id][p4->id] + pointsDistance[p3->id][p2->id];
-          double d3 = pointsDistance[p3->id][p2->id] + pointsDistance[p1->id][p4->id];
-          double d4 = pointsDistance[p4->id][p2->id] + pointsDistance[p3->id][p1->id];
-          
-          if(d4 > d1 && d3 > d1 && d2 > d1 && d0 > d1){
-            swap(vlist[(i+1)%listSize],  vlist[swapId%listSize]);
-          }else if(d4 > d2 && d3 > d2 && d1 > d2 && d0 > d2){
-            swap(vlist[(i+1)%listSize],  vlist[(swapId+1)%listSize]);
-          }else if(d4 > d3 && d2 > d3 && d1 > d3 && d0 > d3){
-            swap(vlist[i%listSize],  vlist[swapId%listSize]);
-          }else if(d0 > d4){
-            swap(vlist[i%listSize],  vlist[(swapId+1)%listSize]);
-          }
-          fixCount += 1;
-
-          /*
-          swap(vlist[i%listSize],  vlist[swapId%listSize]);
-          fixCount += 1;
-          */
-
-          break;
         }
       }
-
-      //fprintf(stderr,"fixCount = %d\n", fixCount);
 
       return fixCount;
     }
