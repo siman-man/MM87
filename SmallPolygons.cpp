@@ -347,6 +347,14 @@ struct Node{
   }
 
   /*
+   * 隣接ノードを完全に削除する
+   */
+  void deleteNeighbor(int nodeId){
+    originNeighbors.erase(nodeId);
+    originDegree = originNeighbors.size();
+  }
+
+  /*
    * 隣接しているノードをリセット
    */
 	void clearNeighbor(){
@@ -390,7 +398,7 @@ struct Line{
   int u;  // 始点
   int v;  // 終点
 
-  void Line(int u, int v){
+  Line(int u = UNKNOWN, int v = UNKNOWN){
     this->u = u;
     this->v = v;
   }
@@ -419,9 +427,6 @@ bool comp(const Edge &e1, const Edge &e2){
   return e1.cost < e2.cost;
 }
 
-// 辺一覧
-vector<Edge> edgeList;
-
 // 多角形を表す構造体
 struct Polygon{
   int id;
@@ -433,7 +438,7 @@ struct Polygon{
   }
 
   bool operator >(const Polygon &p) const{
-    return totalArea > p.totalArea;
+    return totalArea < p.totalArea;
   }    
 };
 
@@ -480,6 +485,8 @@ class SmallPolygons{
      * 隣接ノード一覧の更新
      */
     void updateNeighbor(Node *from){
+      from->clearNeighbor();
+
       for(int id = 0; id < nodeCount; id++){
         Node *to = getNode(id);
 
@@ -665,9 +672,60 @@ class SmallPolygons{
       }
     }
 
+    /*
+     * 三角形を交換
+     */
     bool swapTriangle(int nodeID_A, int nodeID_B){
+      fprintf(stderr,"Swap Triangle! %d <-> %d\n", nodeID_A, nodeID_B);
       Node *nodeA = getNode(nodeID_A);  
       Node *nodeB = getNode(nodeID_B);
+
+      Line shareLine = getShareLine(nodeID_A, nodeID_B);
+      Line crossLine = getCrossLine(nodeID_A, nodeID_B);
+
+      Vector *p1 = getVector(shareLine.u);
+      Vector *p2 = getVector(shareLine.v);
+      Vector *p3 = getVector(crossLine.u);
+      Vector *p4 = getVector(crossLine.v);
+
+      double areaA = calcTriangleArea(p3, p4, p1);
+      double areaB = calcTriangleArea(p3, p4, p2);
+
+      if(max(areaA, areaB) > max(nodeA->area, nodeB->area)){
+        cleanMe(nodeA);
+        cleanMe(nodeB);
+
+        nodeA->p1 = p3;
+        nodeA->p2 = p4;
+        nodeA->p3 = p1;
+        nodeA->area = areaA;
+
+        nodeB->p1 = p3;
+        nodeB->p2 = p4;
+        nodeB->p3 = p2;
+        nodeB->area = areaB;
+
+        updateNeighbor(nodeA);
+        updateNeighbor(nodeB);
+      }else{
+        return false;
+      }
+
+      return true;
+    }
+
+    void cleanMe(Node *node){
+      set<int>::iterator it = node->originNeighbors.begin();
+
+      while(it != node->originNeighbors.end()){
+        Node *neighbor = getNode(*it);
+
+        neighbor->deleteNeighbor(node->id);
+
+        it++;
+      }
+
+      node->originNeighbors.clear();
     }
 
     /*
@@ -716,7 +774,7 @@ class SmallPolygons{
       Line line = getShareLine(rightId, leftId);
 
       // 点が2点しか共有していない場合は、削除すると独立した点になってしまうので分割しない
-      if(pointUsedCount[line.u] <= 2 || pointUsedCount[line.v] <= 2) return false;
+      if(pointUsedCount[line.u] <= 2 || pointUsedCount[line.v] <= 2) return true;
 
       Neighbors rightNeighbors = createNeighbors(rightId);
       Neighbors leftNeighbors = createNeighbors(leftId);
@@ -985,22 +1043,10 @@ class SmallPolygons{
 
       for(int i = 0; i < nodeCount; i++){
         Node *from = getNode(i);
-
-        if(from->removed) continue;
-
         for(int j = i+1; j < nodeCount; j++){
           Node *to = getNode(j);
 
-          if(to->removed) continue;
-
           if(from->isNeighbor(to)){
-						// 辺の追加
-            Edge edgeA(from->id, to->id, to->area);
-            Edge edgeB(to->id, from->id, from->area);
-
-            edgeList.push_back(edgeA);
-            edgeList.push_back(edgeB);
-
             from->addOriginNeighbor(to->id);
             to->addOriginNeighbor(from->id);
           }
@@ -1017,8 +1063,19 @@ class SmallPolygons{
       memset(pointUsedCount, 0, sizeof(pointUsedCount));
 
       createEdge();
+      //cleanTriangles();
       prim();
 		}
+
+    void cleanTriangles(){
+      for(int id = 0; id < nodeCount; id++){
+        Node *node = getNode(id);
+
+        if(node->originDegree == 2){
+          swapTriangle(node->id, *node->originNeighbors.begin());
+        }
+      }
+    }
 
 		/*
 		 * グラフの掃除を行う
@@ -1056,7 +1113,6 @@ class SmallPolygons{
 		 */
 		void resetGraph(){
 			fprintf(stderr,"reset graph =>\n");
-			edgeList.clear();
 
 			for(int id = 0; id < nodeCount; id++){
 				Node *node = getNode(id);
@@ -1130,7 +1186,37 @@ class SmallPolygons{
      * 分割する線分を取得する
      */
     Line getCrossLine(int nodeID_A, int nodeID_B){
+      Node *nodeA = getNode(nodeID_A);
+      Node *nodeB = getNode(nodeID_B);
 
+      map<int, int> pList;
+
+      pList[nodeA->p1->id] += 1;
+      pList[nodeA->p2->id] += 1;
+      pList[nodeA->p3->id] += 1;
+
+      pList[nodeB->p1->id] += 1;
+      pList[nodeB->p2->id] += 1;
+      pList[nodeB->p3->id] += 1;
+
+      map<int, int>::iterator it = pList.begin();
+      Line line;
+
+      while(it != pList.end()){
+        int cnt = (*it).second;
+
+        if(cnt == 1){
+          if(line.u == UNKNOWN){
+            line.u = (*it).first;
+          }else{
+            line.v = (*it).first;
+          }
+        }
+
+        it++;
+      }
+
+      return line;
     }
 
 
@@ -1264,7 +1350,7 @@ class SmallPolygons{
       set<int> notUsePoints;
       for(int i = 0; i < pointCount; i++){
         if(pointUsedCount[i] == 0){
-          fprintf(stderr,"Point %d is not used\n", i);
+          //fprintf(stderr,"Point %d is not used\n", i);
           notUsePoints.insert(i);
         }
       }
@@ -1302,7 +1388,7 @@ class SmallPolygons{
 
       queue<Polygon> finalPolygons;
       int dcnt = 0;
-      int dlimit = 2;
+      int dlimit = n-1;
 
       while(!pque.empty()){
         Polygon poly = pque.top(); pque.pop();
@@ -1313,23 +1399,26 @@ class SmallPolygons{
           if(polygons.first){
             pque.push(polygons.second.first);
             pque.push(polygons.second.second);
+
+            dcnt++;
+            refreshPointUsedCount();
           }else{
             finalPolygons.push(poly);
           }
         }else{
           finalPolygons.push(poly);
         }
-        dcnt++;
       }
 
       fprintf(stderr,"finalPolygons size = %lu\n", finalPolygons.size());
 
       while(!finalPolygons.empty()){
         Polygon poly = finalPolygons.front(); finalPolygons.pop();
+
         vector<int> lines = polygon2vlist(poly);
         string str = vlist2string(lines);
         result.push_back(str);
-
+        
         /*
         set<int>::iterator that = poly.nodes.begin();
 
@@ -1345,6 +1434,7 @@ class SmallPolygons{
           result.push_back(str);
           that++;
         }
+
         */
       }
 
@@ -1367,7 +1457,7 @@ class SmallPolygons{
 
           double dist = getDistanceSP(*p1, *p2, *p);
 
-          if(dist < 150.0){
+          if(dist < 200.0){
             pque.push(Point(p1, p2, p, dist));
           }
 
@@ -1404,26 +1494,12 @@ int main(){
   int n, np, point;
   SmallPolygons sp;
   vector<int> ps;
-
   cin >> np;
-
-  for(int i = 0; i < np; i++){
-    cin >> point;
-    ps.push_back(point);
-  }
-
+  for(int i = 0; i < np; i++){ cin >> point; ps.push_back(point);}
   cin >> n;
-
   vector<string> ret = sp.choosePolygons(ps, n);
-
   int size = ret.size();
-
   cout << size << endl;
-
-  for(int i = 0; i < size; i++){
-    string str = ret[i];
-    cout << str << endl;
-  }
-
+  for(int i = 0; i < size; i++){string str = ret[i]; cout << str << endl;}
   return 0;
 }
