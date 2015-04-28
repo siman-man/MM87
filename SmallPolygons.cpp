@@ -384,6 +384,19 @@ struct Node{
 };
 
 /*
+ * 線分の情報
+ */
+struct Line{
+  int u;  // 始点
+  int v;  // 終点
+
+  void Line(int u, int v){
+    this->u = u;
+    this->v = v;
+  }
+};
+
+/*
  * 各ノードを連結する辺情報
  */
 struct Edge{
@@ -482,6 +495,23 @@ class SmallPolygons{
     }
 
     /*
+     * 頂点の使用されている数の更新を行う
+     */
+    void refreshPointUsedCount(){
+      memset(pointUsedCount, 0, sizeof(pointUsedCount));
+
+      for(int id = 0; id < nodeCount; id++){
+        Node *node = getNode(id);
+
+        if(node->removed) continue;
+
+        pointUsedCount[node->p1->id] += 1;
+        pointUsedCount[node->p2->id] += 1;
+        pointUsedCount[node->p3->id] += 1;
+      }
+    }
+
+    /*
      * プリム法を使って最小木を作成（出来るところまで）
      */
     void prim(){
@@ -529,9 +559,7 @@ class SmallPolygons{
 
         //fprintf(stderr,"%d: %d <---> %d\n", cnt, e.u, e.v);
 
-        if(from->removed){
-          continue;
-        }
+        if(from->removed) continue;
 
         set<int>::iterator it  = nodeIdList.find(from->id);
         set<int>::iterator iti = nodeIdList.find(to->id);
@@ -570,7 +598,7 @@ class SmallPolygons{
     /*
      * 三角形の面積を計算
      */
-    double calcArea(const Vector *p1, const Vector *p2, const Vector *p3){
+    double calcTriangleArea(const Vector *p1, const Vector *p2, const Vector *p3){
       double dx, dy;
 
       dy = (p1->y - p2->y);
@@ -637,6 +665,9 @@ class SmallPolygons{
       }
     }
 
+    /*
+     * 多角形の作成を行う
+     */
     Polygon createPolygon(int nodeId){
 			//fprintf(stderr,"create polygon = %d\n", nodeId);
       vector<int> vlist;
@@ -672,6 +703,9 @@ class SmallPolygons{
       return polygon;
     }
 
+    /*
+     * 与えられた２つのノードが削除出来るかどうかを確認
+     */
     bool checkDivide(int rightId, int leftId){
       Node *one, *two;
 
@@ -696,7 +730,7 @@ class SmallPolygons{
         }
       }
 
-      return !(one->isAttach(two));
+      return one->isAttach(two);
     }
 
     /*
@@ -711,7 +745,7 @@ class SmallPolygons{
       while(id != node->neighbors.end()){
         Node *neighbor = getNode(*id);
 
-        cnt += (neighbor->degree == 2 && checkDivide(node->id, neighbor->id));
+        cnt += (neighbor->degree == 2 && !checkDivide(node->id, neighbor->id));
 
         id++;
       }
@@ -772,10 +806,10 @@ class SmallPolygons{
         Node *right = getNode(neighbors.first());
         Node *left  = getNode(neighbors.second());
 
-        if(right->degree == 2 && checkDivide(removeID_A, right->id)){
+        if(right->degree == 2 && !checkDivide(removeID_A, right->id)){
           polygons.second.first  = divideNode(removeID_A, right->id);
           polygons.second.second = divideNode(right->id, removeID_A);
-        }else if(left->degree == 2 && checkDivide(removeID_A, left->id)){
+        }else if(left->degree == 2 && !checkDivide(removeID_A, left->id)){
           polygons.second.first  = divideNode(removeID_A, left->id);
           polygons.second.second = divideNode(left->id, removeID_A);
         }
@@ -1058,6 +1092,32 @@ class SmallPolygons{
 			return false;
 		}
 
+    /*
+     * ノードAとノードBが共有している線分を取り出す
+     */
+    Line getSHereLine(int nodeID_A, int nodeID_B){
+      Node *nodeA = getNode(nodeID_A);
+      Node *nodeB = getNode(nodeID_B);
+
+      int p1A = nodeA->p1->id;
+      int p2A = nodeA->p2->id;
+      int p3A = nodeA->p3->id;
+
+      int p1B = nodeB->p1->id;
+      int p2B = nodeB->p2->id;
+      int p3B = nodeB->p3->id;
+
+      if(p1A != p1B && p1A != p2B && p1A != p3B){
+        return Line(p2A, p3A);
+      }
+      if(p2A != p1B && p2A != p2B && p2A != p3B){
+        return Line(p1A, p3A);
+      }
+
+      return Line(p1A, p2B);
+    }
+    
+
     Neighbors createNeighbors(int nodeId){
       Node *node = getNode(nodeId);
       Neighbors result;
@@ -1077,15 +1137,15 @@ class SmallPolygons{
      */
     Node createNode(int nodeId, Triangle t){
       Node node;
-      node.id   = nodeId;
-      node.p1   = t.p1;
-      node.p2   = t.p2;
-      node.p3   = t.p3;
-      node.y    = (t.p1->y + t.p2->y + t.p3->y) / 3.0;
-      node.x    = (t.p1->x + t.p2->x + t.p3->x) / 3.0;
+      node.id      = nodeId;
+      node.p1      = t.p1;
+      node.p2      = t.p2;
+      node.p3      = t.p3;
+      node.y       = (t.p1->y + t.p2->y + t.p3->y) / 3.0;
+      node.x       = (t.p1->x + t.p2->x + t.p3->x) / 3.0;
       node.removed = false;
-      node.used = false;
-      node.area = calcArea(t.p1, t.p2, t.p3);
+      node.used    = false;
+      node.area    = calcTriangleArea(t.p1, t.p2, t.p3);
 
       return node;
     }
