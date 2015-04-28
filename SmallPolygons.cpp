@@ -493,6 +493,7 @@ class SmallPolygons{
         if(to->removed || from->id == id) continue;
 
         if(from->isNeighbor(to)){
+          fprintf(stderr,"%d <---> %d neighbor!\n", from->id, to->id);
           from->addOriginNeighbor(to->id);
           to->addOriginNeighbor(from->id);
           from->addNeighbor(to->id);
@@ -544,7 +545,8 @@ class SmallPolygons{
 
         if(!to->removed){
           //fprintf(stderr,"%d <---> %d\n", root->id, to->id);
-          pque.push(Edge(root->id, to->id, to->area));
+          pque.push(edge);
+          //pque.push(Edge(root->id, to->id, root->area));
         }
 
         it++;
@@ -676,7 +678,6 @@ class SmallPolygons{
      * 三角形を交換
      */
     bool swapTriangle(int nodeID_A, int nodeID_B){
-      fprintf(stderr,"Swap Triangle! %d <-> %d\n", nodeID_A, nodeID_B);
       Node *nodeA = getNode(nodeID_A);  
       Node *nodeB = getNode(nodeID_B);
 
@@ -688,12 +689,18 @@ class SmallPolygons{
       Vector *p3 = getVector(crossLine.u);
       Vector *p4 = getVector(crossLine.v);
 
+      if(!intersect(*p1, *p2, *p3, *p4)) return false;
+
       double areaA = calcTriangleArea(p3, p4, p1);
       double areaB = calcTriangleArea(p3, p4, p2);
 
       if(max(areaA, areaB) > max(nodeA->area, nodeB->area)){
+        fprintf(stderr,"Swap Triangle! %d <-> %d\n", nodeID_A, nodeID_B);
         cleanMe(nodeA);
         cleanMe(nodeB);
+
+        fprintf(stderr,"nodeA->p1 = %d, nodeA->p2 = %d, nodeA->p3 = %d\n", nodeA->p1->id, nodeA->p2->id, nodeA->p3->id);
+        fprintf(stderr,"nodeB->p1 = %d, nodeB->p2 = %d, nodeB->p3 = %d\n", nodeB->p1->id, nodeB->p2->id, nodeB->p3->id);
 
         nodeA->p1 = p3;
         nodeA->p2 = p4;
@@ -707,6 +714,9 @@ class SmallPolygons{
 
         updateNeighbor(nodeA);
         updateNeighbor(nodeB);
+
+        fprintf(stderr,"nodeA->p1 = %d, nodeA->p2 = %d, nodeA->p3 = %d\n", nodeA->p1->id, nodeA->p2->id, nodeA->p3->id);
+        fprintf(stderr,"nodeB->p1 = %d, nodeB->p2 = %d, nodeB->p3 = %d\n", nodeB->p1->id, nodeB->p2->id, nodeB->p3->id);
       }else{
         return false;
       }
@@ -1068,11 +1078,17 @@ class SmallPolygons{
 		}
 
     void cleanTriangles(){
+      map<int, bool> checkList;
+
       for(int id = 0; id < nodeCount; id++){
         Node *node = getNode(id);
 
-        if(node->originDegree == 2){
-          swapTriangle(node->id, *node->originNeighbors.begin());
+        if(node->originDegree <= 3 && !checkList[id]){
+          int nid = *node->originNeighbors.begin();
+          if(swapTriangle(node->id, nid)){
+            checkList[nid] = true;
+            checkList[id] = true;
+          }
         }
       }
     }
@@ -1207,8 +1223,10 @@ class SmallPolygons{
 
         if(cnt == 1){
           if(line.u == UNKNOWN){
+            fprintf(stderr,"cross line u = %d\n", (*it).first);
             line.u = (*it).first;
           }else{
+            fprintf(stderr,"cross line v = %d\n", (*it).first);
             line.v = (*it).first;
           }
         }
@@ -1350,7 +1368,7 @@ class SmallPolygons{
       set<int> notUsePoints;
       for(int i = 0; i < pointCount; i++){
         if(pointUsedCount[i] == 0){
-          //fprintf(stderr,"Point %d is not used\n", i);
+          fprintf(stderr,"Point %d is not used\n", i);
           notUsePoints.insert(i);
         }
       }
@@ -1434,8 +1452,8 @@ class SmallPolygons{
           result.push_back(str);
           that++;
         }
-
         */
+
       }
 
       return result;
