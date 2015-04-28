@@ -665,6 +665,11 @@ class SmallPolygons{
       }
     }
 
+    bool swapTriangle(int nodeID_A, int nodeID_B){
+      Node *nodeA = getNode(nodeID_A);  
+      Node *nodeB = getNode(nodeID_B);
+    }
+
     /*
      * 多角形の作成を行う
      */
@@ -706,8 +711,12 @@ class SmallPolygons{
     /*
      * 与えられた２つのノードが削除出来るかどうかを確認
      */
-    bool checkDivide(int rightId, int leftId){
+    bool checkDivide(int leftId, int rightId){
       Node *one, *two;
+      Line line = getShareLine(rightId, leftId);
+
+      // 点が2点しか共有していない場合は、削除すると独立した点になってしまうので分割しない
+      if(pointUsedCount[line.u] <= 2 || pointUsedCount[line.v] <= 2) return false;
 
       Neighbors rightNeighbors = createNeighbors(rightId);
       Neighbors leftNeighbors = createNeighbors(leftId);
@@ -1095,7 +1104,7 @@ class SmallPolygons{
     /*
      * ノードAとノードBが共有している線分を取り出す
      */
-    Line getSHereLine(int nodeID_A, int nodeID_B){
+    Line getShareLine(int nodeID_A, int nodeID_B){
       Node *nodeA = getNode(nodeID_A);
       Node *nodeB = getNode(nodeID_B);
 
@@ -1116,7 +1125,14 @@ class SmallPolygons{
 
       return Line(p1A, p2B);
     }
-    
+
+    /*
+     * 分割する線分を取得する
+     */
+    Line getCrossLine(int nodeID_A, int nodeID_B){
+
+    }
+
 
     Neighbors createNeighbors(int nodeId){
       Node *node = getNode(nodeId);
