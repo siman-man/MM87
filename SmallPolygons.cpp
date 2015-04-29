@@ -694,7 +694,7 @@ class SmallPolygons{
       double areaA = calcTriangleArea(p3, p4, p1);
       double areaB = calcTriangleArea(p3, p4, p2);
 
-      if(max(areaA, areaB) > max(nodeA->area, nodeB->area)){
+      if(min(areaA, areaB) > min(nodeA->area, nodeB->area)){
         fprintf(stderr,"Swap Triangle! %d <-> %d\n", nodeID_A, nodeID_B);
         cleanMe(nodeA);
         cleanMe(nodeB);
@@ -1073,7 +1073,13 @@ class SmallPolygons{
       memset(pointUsedCount, 0, sizeof(pointUsedCount));
 
       createEdge();
-      //cleanTriangles();
+      /*
+      for(int i = 0; i < 10; i++){
+        cleanTriangles();
+        resetGraph();
+      }
+      createEdge();
+      */
       prim();
 		}
 
@@ -1436,7 +1442,8 @@ class SmallPolygons{
         vector<int> lines = polygon2vlist(poly);
         string str = vlist2string(lines);
         result.push_back(str);
-        
+
+
         /*
         set<int>::iterator that = poly.nodes.begin();
 
@@ -1453,7 +1460,6 @@ class SmallPolygons{
           that++;
         }
         */
-
       }
 
       return result;
