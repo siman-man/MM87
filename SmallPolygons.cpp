@@ -427,6 +427,14 @@ bool comp(const Edge &e1, const Edge &e2){
   return e1.cost < e2.cost;
 }
 
+bool vectorComp(const Vector &v1, const Vector &v2){
+  if(v1.x == v2.x){
+    return v1.y < v2.y;
+  }else{
+    return v1.x < v2.x;
+  }
+}
+
 // 多角形を表す構造体
 struct Polygon{
   int id;
@@ -1083,6 +1091,51 @@ class SmallPolygons{
       prim();
 		}
 
+    vector<Vector> createVectorList(){
+      vector<Vector> result;
+
+      for(int i = 0; i < pointCount; i++){
+        result.push_back(vectorList[i]);
+      }
+
+      return result;
+    }
+
+    vector<Vector> createConvexHull(){
+      vector<Line> result;
+      vector<Vector> s = createVectorList();
+      vector<Vector> u, l;
+
+      sort(s.begin(), s.end(), vectorComp);
+
+      u.push_back(s[0]);
+      u.push_back(s[1]);
+
+      l.push_back((s[s.size()-1]));
+      l.push_back((s[s.size()-2]));
+
+      for(int i = 2; i < s.size(); i++){
+        for(int n = u.size(); n >= 2 && ccw(u[n-2], u[n-1], s[i]) != CLOCKWISE; n--){
+          u.pop_back();
+        }
+        u.push_back(s[i]);
+      }
+
+      for(int i = s.size() - 3; i >= 0; i--){
+        for(int n = l.size(); n >= 2 && ccw(l[n-2], l[n-1], s[i]) != CLOCKWISE; n--){
+          l.pop_back();
+        }
+        l.push_back(s[i]);
+      }
+
+      reverse(l.begin(), l.end());
+      for(int i = u.size() - 2; i >= 1; i--){
+        l.push_back(u[i]);
+      }
+
+      return l;
+    };
+
     void cleanTriangles(){
       map<int, bool> checkList;
 
@@ -1461,6 +1514,21 @@ class SmallPolygons{
         }
         */
       }
+
+      vector<Vector> vl = createConvexHull();
+      int vls = vl.size();
+      string str = "";
+
+      for(int i = 0; i < vls; i++){
+        str += int2string(vl[i].id);
+        if(i != vls-1){
+          str += " ";
+        }
+        fprintf(stderr,"id = %d\n", vl[i].id);
+      }
+
+      result.clear();
+      result.push_back(str);
 
       return result;
     }
